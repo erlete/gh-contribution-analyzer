@@ -10,10 +10,13 @@ services:
   caddy:
     image: caddy:2.11
     restart: unless-stopped
-    # Loopback only by design: remote access goes through your own TLS
-    # proxy or tunnel. APP_PORT picks the published port, default 8080.
+    # Loopback by default: remote access goes through your own TLS proxy or
+    # tunnel. APP_PORT picks the published port (default 8080). When the TLS
+    # proxy runs on another machine, set APP_BIND to the interface it
+    # reaches (for example the host's private LAN IP); basic auth still
+    # protects every request.
     ports:
-      - "127.0.0.1:${APP_PORT:-8080}:80"
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:80"
     environment:
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:-root}
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-}

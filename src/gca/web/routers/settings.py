@@ -13,6 +13,7 @@ from gca.mail.backend import MailDeliveryError
 from gca.mail.dispatch import send_test
 from gca.models import Recipient
 from gca.services.settings import (
+    INSIGHT_AREAS,
     AIConfig,
     GraphMailConfig,
     SettingsStore,
@@ -32,6 +33,7 @@ async def settings_view(request: Request, session: SessionDep) -> Response:
     store = SettingsStore(session)
     mail_raw = await store.get("mail") or {}
     ai_raw = await store.get("ai") or {}
+    ai_instructions = await store.ai_instructions()
     mail_status = await store.mail_status()
     recipients = (
         (await session.execute(sa.select(Recipient).order_by(Recipient.email)))
@@ -45,6 +47,7 @@ async def settings_view(request: Request, session: SessionDep) -> Response:
             "scope": scope,
             "mail_raw": mail_raw,
             "ai_raw": ai_raw,
+            "ai_instructions": ai_instructions,
             "mail_status": mail_status,
             "recipients": recipients,
             "mail_error": mail_status.get("last_error"),
@@ -149,6 +152,27 @@ async def settings_ai(
     return RedirectResponse("/settings?msg=AI endpoint configured", status_code=303)
 
 
+@router.post("/settings/ai/instructions")
+async def settings_ai_instructions(
+    request: Request, session: SessionDep
+) -> RedirectResponse:
+    form = await request.form()
+    store = SettingsStore(session)
+    await store.set_ai_instructions(
+        {
+            area: value
+            for area, value in ((k, form.get(k)) for k in INSIGHT_AREAS)
+            if isinstance(value, str)
+        }
+    )
+    await session.commit()
+    return RedirectResponse(
+        "/settings?msg=AI instructions saved, affected insights regenerate on"
+        " next view",
+        status_code=303,
+    )
+
+
 @router.post("/settings/ai/test")
 async def settings_ai_test(session: SessionDep) -> RedirectResponse:
     store = SettingsStore(session)
@@ -160,7 +184,7 @@ async def settings_ai_test(session: SessionDep) -> RedirectResponse:
             reply = await client.complete(
                 "You are a health check. Reply with exactly: ok",
                 "Health check",
-                max_tokens=10,
+                max_tokens=600,
             )
         message = f"AI responded: {reply[:60]}"
     except AIError as exc:

@@ -17,7 +17,10 @@ from gca.models import Setting
 
 MAIL_KEY = "mail"
 AI_KEY = "ai"
+AI_INSTRUCTIONS_KEY = "ai_instructions"
 MAIL_STATUS_KEY = "mail_status"
+
+INSIGHT_AREAS = ("dashboard", "person", "repo", "report")
 
 
 class GraphMailConfig(BaseModel):
@@ -152,6 +155,21 @@ class SettingsStore:
     async def clear_ai(self) -> None:
         await self.set(AI_KEY, {})
 
+    async def ai_instructions(self) -> dict[str, str]:
+        """Operator instructions per insight area. Missing areas map to ''."""
+        raw = await self.get(AI_INSTRUCTIONS_KEY) or {}
+        return {area: str(raw.get(area, "") or "").strip() for area in INSIGHT_AREAS}
+
+    async def set_ai_instructions(self, values: dict[str, str]) -> None:
+        await self.set(
+            AI_INSTRUCTIONS_KEY,
+            {
+                area: values.get(area, "").strip()
+                for area in INSIGHT_AREAS
+                if values.get(area, "").strip()
+            },
+        )
+
     async def mail_status(self) -> dict[str, Any]:
         return await self.get(MAIL_STATUS_KEY) or {}
 
@@ -161,35 +179,25 @@ class SettingsStore:
         await self.set(MAIL_STATUS_KEY, status)
 
     async def seed_from_env(self, env: Settings) -> None:
-        """Write mail/AI seeds for keys that do not exist yet. Idempotent."""
-        if await self.get(MAIL_KEY) is None:
-            if all(
-                (
-                    env.mail_azure_client_id,
-                    env.mail_azure_client_secret,
-                    env.mail_azure_tenant_id,
-                    env.mail_sender_address,
+        """Write mail/AI seeds for keys that do not exist yet. Idempotent.
+        SMTP is deliberately not seedable: configure it on the settings
+        screen."""
+        if await self.get(MAIL_KEY) is None and all(
+            (
+                env.mail_azure_client_id,
+                env.mail_azure_client_secret,
+                env.mail_azure_tenant_id,
+                env.mail_sender_address,
+            )
+        ):
+            await self.set_mail_graph(
+                GraphMailConfig(
+                    client_id=env.mail_azure_client_id,
+                    client_secret=env.mail_azure_client_secret,
+                    tenant_id=env.mail_azure_tenant_id,
+                    sender=env.mail_sender_address,
                 )
-            ):
-                await self.set_mail_graph(
-                    GraphMailConfig(
-                        client_id=env.mail_azure_client_id,
-                        client_secret=env.mail_azure_client_secret,
-                        tenant_id=env.mail_azure_tenant_id,
-                        sender=env.mail_sender_address,
-                    )
-                )
-            elif env.smtp_host:
-                await self.set_mail_smtp(
-                    SmtpMailConfig(
-                        host=env.smtp_host,
-                        port=env.smtp_port,
-                        username=env.smtp_username,
-                        password=env.smtp_password,
-                        starttls=env.smtp_starttls,
-                        sender=env.smtp_sender_address,
-                    )
-                )
+            )
         if (
             await self.get(AI_KEY) is None
             and env.ai_service_url

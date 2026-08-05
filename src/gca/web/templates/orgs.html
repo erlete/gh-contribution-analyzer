@@ -40,16 +40,26 @@
 
   <details>
     <summary class="muted">Repository filter ({{ org.repo_filter_mode.value }})</summary>
-    <form method="post" action="/orgs/{{ org.id }}/repo-filters" class="stack" style="margin-top:0.5rem">
-      <div class="actions">
+    <form method="post" action="/orgs/{{ org.id }}/repo-filters" style="margin-top:0.5rem;max-width:560px">
+      <div class="actions" style="margin-bottom:0.6rem">
         <label><input type="radio" name="mode" value="all" {{ 'checked' if org.repo_filter_mode.value == 'all' }}> All repos</label>
         <label><input type="radio" name="mode" value="whitelist" {{ 'checked' if org.repo_filter_mode.value == 'whitelist' }}> Only listed</label>
         <label><input type="radio" name="mode" value="blacklist" {{ 'checked' if org.repo_filter_mode.value == 'blacklist' }}> All except listed</label>
       </div>
-      <label class="field">Repository names, one per line
-        <textarea name="names" rows="4">{{ filter_names.get(org.id, []) | join('\n') }}</textarea>
-      </label>
-      <button type="submit" class="secondary">Save filter</button>
+      <div class="list-builder" data-field="names"
+           data-values='{{ filter_names.get(org.id, []) | tojson }}'>
+        <div class="lb-add">
+          <select aria-label="Add repository to the list">
+            {% for name in repo_names.get(org.id, []) %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+          </select>
+          <button type="button" class="secondary">Add</button>
+        </div>
+        <div class="lb-empty">No repositories listed.</div>
+        <ul class="lb-items"></ul>
+      </div>
+      <div class="actions" style="margin-top:0.6rem">
+        <button type="submit" class="secondary">Save filter</button>
+      </div>
     </form>
   </details>
 </div>

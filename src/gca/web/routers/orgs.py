@@ -50,6 +50,13 @@ async def orgs_view(request: Request, session: SessionDep) -> Response:
     filter_names: dict[int, list[str]] = {}
     for row in filters:
         filter_names.setdefault(row.org_id, []).append(row.repo_name)
+    repo_names: dict[int, list[str]] = {}
+    for name_row in (
+        await session.execute(
+            sa.select(Repo.org_id, Repo.name).order_by(Repo.org_id, Repo.name)
+        )
+    ).all():
+        repo_names.setdefault(name_row.org_id, []).append(name_row.name)
     recent_runs = (
         (
             await session.execute(
@@ -70,6 +77,7 @@ async def orgs_view(request: Request, session: SessionDep) -> Response:
             "orgs": orgs,
             "repo_counts": repo_counts,
             "filter_names": filter_names,
+            "repo_names": repo_names,
             "recent_runs": recent_runs,
             "mail_error": None,
         },
@@ -153,15 +161,20 @@ async def orgs_remove(session: SessionDep, org_id: int) -> RedirectResponse:
 
 @router.post("/orgs/{org_id}/repo-filters")
 async def orgs_repo_filters(
+    request: Request,
     session: SessionDep,
     org_id: int,
     mode: Annotated[str, Form()],
-    names: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     org = await session.get_one(Org, org_id)
     org.repo_filter_mode = FilterMode(mode)
     await session.execute(sa.delete(RepoFilter).where(RepoFilter.org_id == org_id))
-    listed = {line.strip() for line in names.splitlines() if line.strip()}
+    form = await request.form()
+    listed = {
+        value.strip()
+        for key, value in form.multi_items()
+        if key == "names" and isinstance(value, str) and value.strip()
+    }
     for name in sorted(listed):
         session.add(RepoFilter(org_id=org_id, repo_name=name))
     repos = (

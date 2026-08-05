@@ -28,7 +28,7 @@ from gca.models import (
     Review,
     SyncRun,
 )
-from gca.services import membership
+from gca.services import audit, membership
 from gca.sync.api import (
     AuthError,
     GitHubClient,
@@ -288,6 +288,25 @@ async def sync_org(
             org.last_synced_at = _utcnow()
             if org.credential is not None:
                 org.credential.rate_snapshot = dict(client.rate_snapshot)
+            await audit.record(
+                session,
+                kind="sync.finished",
+                actor="worker",
+                subject=org.login,
+                message=(
+                    f"Sync finished for {org.login}: "
+                    f"{summary.repos_processed} repos, "
+                    f"{summary.new_commits} new commits, "
+                    f"{summary.new_prs} new PRs"
+                    + (f", {len(summary.errors)} errors" if summary.errors else "")
+                ),
+                data={
+                    "repos": summary.repos_processed,
+                    "commits": summary.new_commits,
+                    "prs": summary.new_prs,
+                    "errors": len(summary.errors),
+                },
+            )
             await session.commit()
     except (AuthError, NotAnOrgError) as exc:
         summary.degraded = True

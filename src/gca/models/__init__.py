@@ -2,6 +2,7 @@
 
 from gca.models.activity import Commit, CommitFile, FileClass, PullRequest, Review
 from gca.models.ops import (
+    AuditEvent,
     Insight,
     JobLedger,
     Recipient,
@@ -35,6 +36,7 @@ __all__ = [
     "PersonFilter",
     "OrgMember",
     "RepoFilter",
+    "AuditEvent",
     "Insight",
     "JobLedger",
     "Recipient",

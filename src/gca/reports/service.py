@@ -27,8 +27,8 @@ from gca.ai.insights import InsightResult, insight_for
 from gca.config import get_settings
 from gca.metrics.churn import DEFAULT_CHURN_WINDOW_DAYS
 from gca.models import Org, Person, Repo, Report
-from gca.reports.builder import render_pdf, trend_chart_data_uri
-from gca.services import insight_context, stats
+from gca.reports.builder import render_pdf, trend_chart_svg
+from gca.services import audit, insight_context, stats
 from gca.services.stats import PersonStat
 from gca.timeutil import utcnow
 
@@ -57,7 +57,7 @@ async def _chart(session: AsyncSession, **kwargs: object) -> str | None:
     series = await stats.timeseries(session, **kwargs)  # type: ignore[arg-type]
     if not series:
         return None
-    return await asyncio.to_thread(trend_chart_data_uri, series)
+    return await asyncio.to_thread(trend_chart_svg, series)
 
 
 _TITLES = {
@@ -101,6 +101,12 @@ async def request_report(
     )
     session.add(report)
     await session.flush()
+    await audit.record(
+        session,
+        kind="report.requested",
+        subject=report.title,
+        message=f"Report queued: {report.title}",
+    )
     return report
 
 
@@ -176,6 +182,13 @@ async def fulfill_report(
     report.status = "generated"
     report.error = None
     report.generated_at = utcnow()
+    await audit.record(
+        session,
+        kind="report.generated",
+        actor="worker",
+        subject=report.title,
+        message=f"Report generated: {report.title}",
+    )
     await session.flush()
 
 

@@ -1,139 +1,117 @@
 {% extends "base.html" %}
+{% import "_components.html" as c %}
 {% block title %}Organizations, Contribution Analyzer{% endblock %}
 {% block content %}
-<h1>Organizations</h1>
+<h1 class="page-title">Organizations</h1>
 
 {% for org in orgs %}
 <div class="panel">
   <h2>
     {{ org.login }}
-    <span class="pill {{ 'good' if org.sync_status == 'idle' else 'warn' if org.sync_status in ('running', 'degraded') else '' }}">{{ org.sync_status }}</span>
-    {% if not org.sync_enabled %}<span class="pill">sync paused</span>{% endif %}
+    {{ c.status_tag(org.sync_status) }}
+    {% if not org.sync_enabled %}{{ c.tag("sync paused", "purple") }}{% endif %}
+    {% if org.ignore_forks %}{{ c.tag("forks ignored", "teal") }}{% endif %}
+    {% if org.members_only %}{{ c.tag("members only (" ~ member_counts.get(org.id, 0) ~ ")", "teal") }}{% endif %}
   </h2>
-  <p class="muted small">
+  <p class="muted small mb-03">
     {{ org.display_name }} | {{ repo_counts.get(org.id, 0) }} repositories |
-    token validated {{ org.credential.validated_at if org.credential else 'never' }} |
-    last synced {{ org.last_synced_at or 'never' }}
+    token validated {{ org.credential.validated_at.strftime("%Y-%m-%d %H:%M") if org.credential and org.credential.validated_at else 'never' }} |
+    last synced {{ org.last_synced_at.strftime("%Y-%m-%d %H:%M") if org.last_synced_at else 'never' }}
     {% if org.credential and org.credential.rate_snapshot %}
     | rate remaining {{ org.credential.rate_snapshot.get('x-ratelimit-remaining', '?') }}
     {% endif %}
   </p>
   {% if org.sync_error %}<div class="banner error">{{ org.sync_error }}</div>{% endif %}
 
-  <div class="actions" style="margin-bottom:0.8rem">
+  <div class="actions mb-05">
     <form method="post" action="/orgs/{{ org.id }}/sync"><button type="submit">Sync now</button></form>
     <form method="post" action="/orgs/{{ org.id }}/revalidate"><button type="submit" class="secondary">Revalidate token</button></form>
     <form method="post" action="/orgs/{{ org.id }}/toggle-sync"><button type="submit" class="secondary">{{ 'Pause' if org.sync_enabled else 'Resume' }} scheduled sync</button></form>
+    <form method="post" action="/orgs/{{ org.id }}/toggle-forks">
+      <button type="submit" class="secondary">{{ 'Include forks again' if org.ignore_forks else 'Ignore forks' }}</button>
+    </form>
+    <form method="post" action="/orgs/{{ org.id }}/toggle-members">
+      <button type="submit" class="secondary">{{ 'Allow external people again' if org.members_only else 'Only org members' }}</button>
+    </form>
     <form method="post" action="/orgs/{{ org.id }}/remove"
           onsubmit="return confirm('Remove {{ org.login }} and every derived commit, PR, report and rollup? This cannot be undone.')">
       <button type="submit" class="danger">Remove org</button>
     </form>
   </div>
 
-  <div class="actions" style="margin-bottom:0.8rem">
-    <form method="post" action="/orgs/{{ org.id }}/toggle-forks">
-      <button type="submit" class="secondary">
-        {{ 'Include forks again' if org.ignore_forks else 'Ignore forks' }}
-      </button>
-    </form>
-    {% if org.ignore_forks %}<span class="pill warn">forks ignored everywhere</span>{% endif %}
-    <form method="post" action="/orgs/{{ org.id }}/toggle-members">
-      <button type="submit" class="secondary">
-        {{ 'Allow external people again' if org.members_only else 'Only org members' }}
-      </button>
-    </form>
-    {% if org.members_only %}
-    <span class="pill warn">members only ({{ member_counts.get(org.id, 0) }} members), external people hidden everywhere</span>
-    {% endif %}
+  <h3 class="subhead">Replace token</h3>
+  <form method="post" action="/orgs/{{ org.id }}/token" class="actions mb-05">
+    <input type="password" name="token" placeholder="github_pat_..." required
+           aria-label="New fine-grained token" class="maxw-form">
+    <button type="submit" class="secondary">Validate and save</button>
+  </form>
+
+  <div class="grid2">
+    <div>
+      <h3 class="subhead">Repository filter ({{ org.repo_filter_mode.value }})</h3>
+      <form method="post" action="/orgs/{{ org.id }}/repo-filters">
+        <div class="actions mb-03">
+          <label class="choice"><input type="radio" name="mode" value="all" {{ 'checked' if org.repo_filter_mode.value == 'all' }}><span>All repos</span></label>
+          <label class="choice"><input type="radio" name="mode" value="whitelist" {{ 'checked' if org.repo_filter_mode.value == 'whitelist' }}><span>Only listed</span></label>
+          <label class="choice"><input type="radio" name="mode" value="blacklist" {{ 'checked' if org.repo_filter_mode.value == 'blacklist' }}><span>All except listed</span></label>
+        </div>
+        {{ c.list_builder("names", options_from_names(repo_names.get(org.id, [])), filter_names.get(org.id, []), "No repositories listed.") }}
+        <div class="actions mt-03">
+          <button type="submit" class="secondary">Save filter</button>
+        </div>
+      </form>
+    </div>
+    <div>
+      <h3 class="subhead">Person filter ({{ org.person_filter_mode.value }})</h3>
+      <form method="post" action="/orgs/{{ org.id }}/person-filters">
+        <div class="actions mb-03">
+          <label class="choice"><input type="radio" name="mode" value="all" {{ 'checked' if org.person_filter_mode.value == 'all' }}><span>Everyone</span></label>
+          <label class="choice"><input type="radio" name="mode" value="whitelist" {{ 'checked' if org.person_filter_mode.value == 'whitelist' }}><span>Only listed</span></label>
+          <label class="choice"><input type="radio" name="mode" value="blacklist" {{ 'checked' if org.person_filter_mode.value == 'blacklist' }}><span>All except listed</span></label>
+        </div>
+        {{ c.list_builder("person_ids", options_from(persons, "id", "display_name"), person_filter_entries.get(org.id, []), "No people listed.") }}
+        <div class="actions mt-03">
+          <button type="submit" class="secondary">Save filter</button>
+        </div>
+      </form>
+    </div>
   </div>
-
-  <details>
-    <summary class="muted">Replace token</summary>
-    <form method="post" action="/orgs/{{ org.id }}/token" class="actions" style="margin-top:0.5rem">
-      <input type="password" name="token" placeholder="github_pat_..." required style="max-width:320px">
-      <button type="submit" class="secondary">Validate and save</button>
-    </form>
-  </details>
-
-  <details>
-    <summary class="muted">Repository filter ({{ org.repo_filter_mode.value }})</summary>
-    <form method="post" action="/orgs/{{ org.id }}/repo-filters" style="margin-top:0.5rem;max-width:560px">
-      <div class="actions" style="margin-bottom:0.6rem">
-        <label><input type="radio" name="mode" value="all" {{ 'checked' if org.repo_filter_mode.value == 'all' }}> All repos</label>
-        <label><input type="radio" name="mode" value="whitelist" {{ 'checked' if org.repo_filter_mode.value == 'whitelist' }}> Only listed</label>
-        <label><input type="radio" name="mode" value="blacklist" {{ 'checked' if org.repo_filter_mode.value == 'blacklist' }}> All except listed</label>
-      </div>
-      <div class="list-builder" data-field="names"
-           data-values='{{ filter_names.get(org.id, []) | tojson }}'>
-        <div class="lb-add">
-          <select aria-label="Add repository to the list">
-            {% for name in repo_names.get(org.id, []) %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
-          </select>
-          <button type="button" class="secondary">Add</button>
-        </div>
-        <div class="lb-empty">No repositories listed.</div>
-        <ul class="lb-items"></ul>
-      </div>
-      <div class="actions" style="margin-top:0.6rem">
-        <button type="submit" class="secondary">Save filter</button>
-      </div>
-    </form>
-  </details>
-
-  <details>
-    <summary class="muted">Person filter ({{ org.person_filter_mode.value }})</summary>
-    <form method="post" action="/orgs/{{ org.id }}/person-filters" style="margin-top:0.5rem;max-width:560px">
-      <div class="actions" style="margin-bottom:0.6rem">
-        <label><input type="radio" name="mode" value="all" {{ 'checked' if org.person_filter_mode.value == 'all' }}> Everyone</label>
-        <label><input type="radio" name="mode" value="whitelist" {{ 'checked' if org.person_filter_mode.value == 'whitelist' }}> Only listed</label>
-        <label><input type="radio" name="mode" value="blacklist" {{ 'checked' if org.person_filter_mode.value == 'blacklist' }}> All except listed</label>
-      </div>
-      <div class="list-builder" data-field="person_ids"
-           data-values='{{ person_filter_entries.get(org.id, []) | tojson }}'>
-        <div class="lb-add">
-          <select aria-label="Add person to the list">
-            {% for p in persons %}<option value="{{ p.id }}">{{ p.display_name }}</option>{% endfor %}
-          </select>
-          <button type="button" class="secondary">Add</button>
-        </div>
-        <div class="lb-empty">No people listed.</div>
-        <ul class="lb-items"></ul>
-      </div>
-      <div class="actions" style="margin-top:0.6rem">
-        <button type="submit" class="secondary">Save filter</button>
-      </div>
-    </form>
-  </details>
 </div>
 {% endfor %}
 
 <div class="panel">
   <h2>Add organization</h2>
   <form method="post" action="/orgs/add" class="stack">
-    <label class="field">Organization login
-      <input type="text" name="login" required placeholder="my-org">
-    </label>
-    <label class="field">Fine-grained personal access token (resource owner must be the org)
-      <input type="password" name="token" required placeholder="github_pat_...">
-    </label>
-    <button type="submit">Validate and connect</button>
+    {{ c.text_field("login", "Organization login", placeholder="my-org", required=True) }}
+    {{ c.text_field("token", "Fine-grained personal access token (resource owner must be the org)", type="password", placeholder="github_pat_...", required=True) }}
+    <div class="actions">
+      <button type="submit">Validate and connect</button>
+    </div>
   </form>
 </div>
 
 <div class="panel">
   <h2>Recent discovery runs</h2>
-  <table>
-    <tr><th>Org</th><th>Status</th><th>Started</th><th>Stats</th></tr>
+  {% call c.table("Latest discovery runs, newest first",
+                  [("Org",), ("Status",), ("Started",), ("Stats",)]) %}
     {% for run in recent_runs %}
     <tr>
-      <td>{{ run.org_id }}</td>
-      <td><span class="pill {{ 'good' if run.status == 'success' else 'bad' }}">{{ run.status }}</span></td>
-      <td class="small muted">{{ run.started_at }}</td>
-      <td class="small muted">{{ run.stats or run.error or '' }}</td>
+      <td>{{ org_logins.get(run.org_id, run.org_id) }}</td>
+      <td>{{ c.status_tag("ok" if run.status == "success" else run.status) }}</td>
+      <td class="helper small nowrap">{{ run.started_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      <td class="helper small">
+        {%- if run.stats -%}
+          {%- for key, value in run.stats.items() -%}
+            {{ key.replace('_', ' ') }} {{ value }}{{ ", " if not loop.last }}
+          {%- endfor -%}
+        {%- elif run.error -%}
+          {{ run.error | truncate(120) }}
+        {%- endif -%}
+      </td>
     </tr>
     {% else %}
-    <tr><td colspan="4" class="muted">No runs yet.</td></tr>
+    {{ c.empty_row(4, "No runs yet.") }}
     {% endfor %}
-  </table>
+  {% endcall %}
 </div>
 {% endblock %}

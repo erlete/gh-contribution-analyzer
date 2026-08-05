@@ -224,6 +224,7 @@ async def _auto_merge(
 ) -> int:
     """Execute queued certain merges, following prior merges transitively."""
     from gca.identity.merge import merge_persons
+    from gca.services import audit
 
     redirect: dict[int, int] = {}
 
@@ -251,6 +252,16 @@ async def _auto_merge(
         ):
             survivor.display_name = source.display_name
             await session.flush()
+        await audit.record(
+            session,
+            kind="identity.auto_merged",
+            actor="system",
+            subject=survivor.display_name,
+            message=(
+                f"Automatically merged {source.display_name} into "
+                f"{survivor.display_name} (identity proof)"
+            ),
+        )
         redirect[source.id] = target.id
         merged += 1
     return merged

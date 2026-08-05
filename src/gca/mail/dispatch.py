@@ -15,6 +15,7 @@ from gca.mail.backend import Attachment, MailBackend, MailDeliveryError, Outgoin
 from gca.mail.graph import GraphBackend
 from gca.mail.smtp import SmtpBackend
 from gca.models import Report
+from gca.services import audit
 from gca.services.settings import SettingsStore
 from gca.timeutil import utcnow
 
@@ -70,6 +71,13 @@ async def send_report(
     async def _fail(error: str) -> bool:
         report.status = "unsent"
         await store.set_mail_status(last_error=error)
+        await audit.record(
+            session,
+            kind="mail.failed",
+            actor="worker",
+            subject=report.title,
+            message=f"Report email failed: {error[:300]}",
+        )
         return False
 
     backend = await resolve_backend(store)
@@ -99,4 +107,11 @@ async def send_report(
     report.status = "emailed"
     report.emailed_at = utcnow()
     await store.set_mail_status(last_success=utcnow().isoformat(), last_error=None)
+    await audit.record(
+        session,
+        kind="mail.sent",
+        actor="worker",
+        subject=report.title,
+        message=f"Report emailed to {len(recipients)} recipient(s)",
+    )
     return True

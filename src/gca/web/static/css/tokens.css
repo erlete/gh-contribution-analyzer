@@ -32,6 +32,7 @@
 
 :root {
   --bg-base: #262626;
+  --bg-header: #161616;
   --bg-layer-01: #393939;
   --bg-layer-02: #525252;
   --bg-layer-03: #6f6f6f;
@@ -43,6 +44,7 @@
   --bg-layer-active-03: #393939;
   --bg-layer-selected-01: #525252;
   --bg-layer-selected-02: #6f6f6f;
+  --bg-layer-accent-01: #525252;
   --bg-field-01: #393939;
   --bg-field-02: #525252;
   --bg-field-hover-01: #474747;
@@ -163,6 +165,9 @@
   --icon-01: 1rem;
   --icon-02: 1.25rem;
   --focus-width: 2px;
+  --hairline: 1px;
+  --form-max: 30rem;
+  --field-max: 20rem;
   --dur-fast-01: 70ms;
   --dur-fast-02: 110ms;
   --dur-moderate-01: 150ms;

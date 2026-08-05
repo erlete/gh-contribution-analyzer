@@ -1,12 +1,18 @@
+"""Settings store: in-app only configuration with encrypted secrets."""
+
 from collections.abc import AsyncIterator
 
 import pytest
 from cryptography.fernet import Fernet
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from gca.config import Settings
 from gca.db.base import Base
-from gca.services.settings import SettingsStore, SmtpMailConfig
+from gca.services.settings import (
+    AIConfig,
+    GraphMailConfig,
+    SettingsStore,
+    SmtpMailConfig,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -25,22 +31,22 @@ async def session() -> AsyncIterator[AsyncSession]:
     await engine.dispose()
 
 
-def _env(**overrides: object) -> Settings:
-    return Settings(_env_file=None, **overrides)  # type: ignore[arg-type]
-
-
-def _graph_env() -> Settings:
-    return _env(
-        mail_azure_client_id="cid",
-        mail_azure_client_secret="csecret",
-        mail_azure_tenant_id="tid",
-        mail_sender_address="noreply@example.com",
-    )
-
-
-async def test_seed_graph(session: AsyncSession) -> None:
+async def test_unconfigured_store_has_nothing(session: AsyncSession) -> None:
     store = SettingsStore(session)
-    await store.seed_from_env(_graph_env())
+    assert await store.mail_config() is None
+    assert await store.ai_config() is None
+
+
+async def test_graph_roundtrip_encrypts_secret(session: AsyncSession) -> None:
+    store = SettingsStore(session)
+    await store.set_mail_graph(
+        GraphMailConfig(
+            client_id="cid",
+            client_secret="csecret",
+            tenant_id="tid",
+            sender="noreply@example.com",
+        )
+    )
     cfg = await store.mail_config()
     assert cfg is not None and cfg.provider == "graph"
     assert cfg.graph is not None
@@ -50,47 +56,38 @@ async def test_seed_graph(session: AsyncSession) -> None:
     assert raw["graph"]["client_secret_enc"] != "csecret"
 
 
-async def test_smtp_is_in_app_only(session: AsyncSession) -> None:
-    """SMTP has no environment seeds; it is set from the settings screen."""
+async def test_smtp_roundtrip(session: AsyncSession) -> None:
     store = SettingsStore(session)
-    await store.seed_from_env(_env())
-    assert await store.mail_config() is None
     await store.set_mail_smtp(SmtpMailConfig(host="mailpit", port=1025))
     cfg = await store.mail_config()
     assert cfg is not None and cfg.provider == "smtp"
     assert cfg.smtp is not None and cfg.smtp.port == 1025
 
 
-async def test_seed_is_idempotent(session: AsyncSession) -> None:
+async def test_last_saved_backend_wins(session: AsyncSession) -> None:
     store = SettingsStore(session)
-    await store.seed_from_env(_graph_env())
+    await store.set_mail_graph(
+        GraphMailConfig(
+            client_id="cid", client_secret="s", tenant_id="t", sender="a@b.c"
+        )
+    )
     await store.set_mail_smtp(SmtpMailConfig(host="manual-edit"))
-    await store.seed_from_env(_graph_env())
     cfg = await store.mail_config()
-    assert cfg is not None and cfg.smtp is not None
-    assert cfg.smtp.host == "manual-edit"
-
-
-async def test_seed_nothing_configured(session: AsyncSession) -> None:
-    store = SettingsStore(session)
-    await store.seed_from_env(_env())
-    assert await store.mail_config() is None
-    assert await store.ai_config() is None
+    assert cfg is not None and cfg.provider == "smtp"
+    assert cfg.smtp is not None and cfg.smtp.host == "manual-edit"
 
 
 async def test_ai_roundtrip(session: AsyncSession) -> None:
     store = SettingsStore(session)
-    await store.seed_from_env(
-        _env(
-            ai_service_url="https://ai.example.com/v1",
-            ai_service_key="sk-test",
-            ai_service_model="qwen-max",
-        )
+    await store.set_ai(
+        AIConfig(url="https://ai.example.com/v1", key="sk-test", model="qwen-max")
     )
     cfg = await store.ai_config()
     assert cfg is not None
     assert cfg.key == "sk-test"
     assert cfg.model == "qwen-max"
+    await store.clear_ai()
+    assert await store.ai_config() is None
 
 
 async def test_ai_instructions_roundtrip(session: AsyncSession) -> None:

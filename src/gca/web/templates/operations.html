@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "_components.html" as c %}
+{% block title %}Operations{% endblock %}
+{% block content %}
+<h1 class="page-title">Operations</h1>
+
+<div class="panel">
+  <h2>Running now</h2>
+  {% include "_operations_running.html" %}
+</div>
+
+<div class="panel">
+  <h2>History</h2>
+  <form method="get" class="actions mb-03">
+    <span class="maxw-field" data-autosubmit>{{ c.select_raw("kind", kind_options, kind_filter) }}</span>
+    <button type="submit" class="secondary small">Apply</button>
+  </form>
+  <input class="rowfilter" type="text" placeholder="Filter events"
+         data-filter-rows="#audit-table" aria-label="Filter events">
+  {% call c.table("Latest " ~ history_limit ~ " operational events, newest first",
+                  [("Time",), ("Actor",), ("Kind",), ("Subject",), ("Detail",)],
+                  id="audit-table") %}
+    {% for event in events %}
+    <tr id="audit-table-row-{{ event.id }}">
+      <td class="nowrap num">{{ event.ts.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+      <td>{{ c.tag(event.actor, "purple" if event.actor == "system" else "teal" if event.actor == "worker" else "gray") }}</td>
+      <td>{{ c.tag(event.kind, "blue" if event.kind.startswith("sync") else "green" if event.kind.startswith("report") else "red" if "failed" in event.kind else "gray", outline=True) }}</td>
+      <td>{{ event.subject }}</td>
+      <td>{{ event.message }}</td>
+    </tr>
+    {% else %}
+    {{ c.empty_row(5, "No operations recorded yet. Every sync, report, mail delivery, merge and policy change lands here as it happens.") }}
+    {% endfor %}
+  {% endcall %}
+</div>
+{% endblock %}

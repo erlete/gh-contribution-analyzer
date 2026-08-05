@@ -28,6 +28,7 @@ SCREEN_CSS = ROOT / "src" / "gca" / "web" / "static" / "css" / "tokens.css"
 PRINT_CSS = ROOT / "src" / "gca" / "reports" / "styles" / "tokens-print.css"
 ECHARTS_THEME = ROOT / "src" / "gca" / "web" / "static" / "echarts-theme.json"
 MPLSTYLE = ROOT / "src" / "gca" / "reports" / "carbon.mplstyle"
+PALETTES = ROOT / "src" / "gca" / "charts" / "palettes.py"
 
 CSS_HEADER = """\
 /* GENERATED FILE - DO NOT EDIT.
@@ -74,6 +75,9 @@ LAYOUT_VARS = {
     "icon-size-01": "icon-01",
     "icon-size-02": "icon-02",
     "focus-outline-width": "focus-width",
+    "hairline": "hairline",
+    "form-max": "form-max",
+    "field-max": "field-max",
 }
 
 MOTION_VARS = {
@@ -263,12 +267,45 @@ def emit_mplstyle(tokens: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def emit_palettes(tokens: dict[str, Any]) -> str:
+    viz = tokens["dataviz"]
+    categorical = {int(k): v for k, v in viz["categorical"].items()}
+    lines = [
+        '"""GENERATED FILE - DO NOT EDIT.',
+        "",
+        "Source: design/tokens.json (regenerate with `python design/build_tokens.py`).",
+        '"""',
+        "",
+        f"CATEGORICAL: dict[int, list[str]] = {categorical!r}",
+        "",
+        f"SEQUENTIAL_BLUE: list[str] = {viz['sequential-blue']!r}",
+        "",
+        f"DIVERGENT: list[str] = {viz['divergent']!r}",
+        "",
+        f"AXIS = {viz['axis']!r}",
+        f"GRID = {viz['grid']!r}",
+        f"TICK_LABEL = {viz['tick-label']!r}",
+        f"TITLE = {viz['title']!r}",
+        f"LEGEND_TEXT = {viz['legend-text']!r}",
+        "",
+        "",
+        "def categorical_for(count: int) -> list[str]:",
+        '    """The palette engineered for this many data groups, in order."""',
+        "    for size in sorted(CATEGORICAL):",
+        "        if count <= size:",
+        "            return CATEGORICAL[size][:count] if size == 14 else CATEGORICAL[size]",
+        "    return CATEGORICAL[max(CATEGORICAL)]",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def artifacts(tokens: dict[str, Any]) -> dict[Path, str]:
     return {
         SCREEN_CSS: emit_screen_css(tokens),
         PRINT_CSS: emit_print_css(tokens),
         ECHARTS_THEME: emit_echarts_theme(tokens),
         MPLSTYLE: emit_mplstyle(tokens),
+        PALETTES: emit_palettes(tokens),
     }
 
 

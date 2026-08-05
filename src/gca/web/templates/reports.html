@@ -1,45 +1,43 @@
 {% extends "base.html" %}
+{% import "_components.html" as c %}
 {% block title %}Reports, Contribution Analyzer{% endblock %}
 {% block content %}
-<h1>Reports</h1>
+<h1 class="page-title">Reports</h1>
 
 <div class="panel">
   <h2>Generate on demand</h2>
-  <p class="muted small">
+  <p class="muted small mb-03">
     Uses the current org scope ({{ scope.label }}). Individual kinds produce a
     single document: introduction, table of contents, then one analyzed
     section per person or repository. Leave dates empty for full history,
-    leave selections empty for all subjects.
+    leave lists empty for all subjects. Generation runs in the background;
+    the archive below shows live status.
   </p>
   <form method="post" action="/reports/generate">
-    <div class="actions" style="margin-bottom:0.8rem">
-      <label class="field">Report kind
-        <select name="kind">
-          <option value="overview">General overview</option>
-          <option value="person">Individual people (one document, a section per person)</option>
-          <option value="repo">Individual repositories (one document, a section per repo)</option>
-        </select>
-      </label>
-      <label class="field">From <input type="date" name="date_from"></label>
-      <label class="field">To <input type="date" name="date_to"></label>
+    <div class="actions mb-05">
+      {{ c.select_field("kind", "Report kind", [
+        ("overview", "General overview"),
+        ("person", "Individual people (one document, a section per person)"),
+        ("repo", "Individual repositories (one document, a section per repo)"),
+      ]) }}
+      {{ c.text_field("date_from", "From", type="date") }}
+      {{ c.text_field("date_to", "To", type="date") }}
     </div>
     <div class="grid2">
-      <label class="field">Limit to repositories
-        <select name="repo_ids" multiple size="8">
-          {% for repo, login in repos %}
-          <option value="{{ repo.id }}">{{ login }}/{{ repo.name }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label class="field">Limit to people
-        <select name="person_ids" multiple size="8">
-          {% for p in persons %}
-          <option value="{{ p.id }}">{{ p.display_name }}</option>
-          {% endfor %}
-        </select>
-      </label>
+      <div>
+        <h3 class="subhead">Limit to repositories</h3>
+        {% set repo_options = [] %}
+        {% for repo, login in repos %}
+          {% set _ = repo_options.append((repo.id, login ~ '/' ~ repo.name)) %}
+        {% endfor %}
+        {{ c.list_builder("repo_ids", repo_options, [], "All repositories included.") }}
+      </div>
+      <div>
+        <h3 class="subhead">Limit to people</h3>
+        {{ c.list_builder("person_ids", options_from(persons, "id", "display_name"), [], "All people included.") }}
+      </div>
     </div>
-    <div class="actions" style="margin-top:0.8rem">
+    <div class="actions mt-05">
       <button type="submit">Generate</button>
     </div>
   </form>
@@ -47,67 +45,68 @@
 
 <div class="panel">
   <h2>Periodic schedules</h2>
-  <p class="muted small">
+  <p class="muted small mb-03">
     Enabled combinations generate at period close and email every active
     recipient. Nothing is generated retroactively.
   </p>
   <form method="post" action="/reports/schedules">
-    <table style="max-width:640px">
-      <tr>
-        <th>Period</th>
-        {% for rk in report_kinds %}<th>{{ rk }}</th>{% endfor %}
-      </tr>
+    {% set schedule_headers = [("Period",)] %}
+    {% for rk in report_kinds %}{% set _ = schedule_headers.append((rk | capitalize,)) %}{% endfor %}
+    {% call c.table("Enabled schedule combinations", schedule_headers) %}
       {% for pk in period_kinds %}
       <tr>
         <td>{{ pk.replace('_', ' ') }}</td>
         {% for rk in report_kinds %}
         {% set s = schedules.get((pk, rk)) %}
         <td>
-          <input type="checkbox" name="sched-{{ pk }}-{{ rk }}"
-                 {{ 'checked' if s and s.enabled }}>
+          <label class="choice">
+            <input type="checkbox" name="sched-{{ pk }}-{{ rk }}" {{ 'checked' if s and s.enabled }}>
+            <span class="helper small">{{ rk }}</span>
+          </label>
         </td>
         {% endfor %}
       </tr>
       {% endfor %}
-    </table>
-    <div class="actions" style="margin-top:0.6rem">
+    {% endcall %}
+    <div class="actions mt-03">
       <button type="submit">Save schedules</button>
-      <a href="/settings" class="muted small">Manage recipients in settings</a>
+      <a href="/settings" class="helper small">Manage recipients in settings</a>
     </div>
   </form>
 </div>
 
 <div class="panel">
   <h2>Archive</h2>
-  <table>
-    <tr><th>Title</th><th>Kind</th><th>Period</th><th>Status</th><th>Generated</th><th></th></tr>
+  {% call c.table("Generated and queued reports, newest first",
+                  [("Title",), ("Kind",), ("Period",), ("Status",), ("Generated",), ("",)]) %}
     {% for r in archive %}
     {% set label = 'generating' if r.status in ('queued', 'generating') else r.status %}
     <tr>
       <td>{{ r.title }}</td>
-      <td><span class="pill">{{ r.kind }}</span> <span class="pill">{{ r.period_kind }}</span></td>
-      <td class="small muted">{{ r.period_start.date() }} to {{ r.period_end.date() }}</td>
+      <td>{{ c.tag(r.kind) }} {{ c.tag(r.period_kind, outline=True) }}</td>
+      <td class="helper small nowrap">{{ r.period_start.date() }} to {{ r.period_end.date() }}</td>
       <td>
-        <span class="pill {{ 'good' if label in ('generated', 'emailed') else 'bad' if label == 'failed' else 'warn' }}"
-              {% if label == 'failed' and r.error %}title="{{ r.error }}"{% endif %}>{{ label }}</span>
+        <span {% if label == 'failed' and r.error %}title="{{ r.error }}"{% endif %}>{{ c.status_tag(label) }}</span>
       </td>
-      <td class="small muted">{{ r.generated_at }}</td>
-      <td class="actions">
-        {% if r.pdf_path %}
-        <a class="btn secondary" href="/reports/{{ r.id }}/download">PDF</a>
-        <form method="post" action="/reports/{{ r.id }}/email">
-          <button type="submit" class="secondary">Email</button>
-        </form>
-        {% elif label == 'failed' %}
-        <span class="muted small">{{ (r.error or 'generation failed') | truncate(60) }}</span>
-        {% else %}
-        <span class="muted small">working on it</span>
-        {% endif %}
+      <td class="helper small nowrap">{{ r.generated_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      <td>
+        <div class="actions">
+          {% if r.pdf_path %}
+          <a class="btn secondary small" href="/reports/{{ r.id }}/download">PDF</a>
+          <form method="post" action="/reports/{{ r.id }}/email">
+            <button type="submit" class="ghost small">Email</button>
+          </form>
+          {% elif label == 'failed' %}
+          <span class="helper small">{{ (r.error or 'generation failed') | truncate(60) }}</span>
+          {% else %}
+          <span class="helper small">working on it</span>
+          {% endif %}
+        </div>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="6" class="muted">No reports yet.</td></tr>
+    {{ c.empty_row(6, "No reports yet. Generate one above or enable a schedule.") }}
     {% endfor %}
-  </table>
+  {% endcall %}
 </div>
 {% endblock %}

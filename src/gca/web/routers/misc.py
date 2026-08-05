@@ -1,4 +1,4 @@
-"""Scope cookie, trend data API and lazy insight partial."""
+"""Scope cookie, chart option APIs and lazy insight partials."""
 
 from typing import Annotated
 
@@ -12,6 +12,7 @@ from fastapi.responses import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gca.ai.insights import insight_for
+from gca.charts import ChartSpec, Series, palettes, render_echarts
 from gca.db.engine import get_session
 from gca.models import Org, Person, Repo
 from gca.services import insight_context, stats
@@ -51,8 +52,9 @@ async def set_scope(
     return response
 
 
-@router.get("/api/trend")
-async def trend(request: Request, session: SessionDep) -> JSONResponse:
+@router.get("/api/charts/trend")
+async def chart_trend(request: Request, session: SessionDep) -> JSONResponse:
+    """Daily commits and significance for the window, dual axis line."""
     scope = await get_scope(request, session)
     period = parse_range(request)
     repo_id = request.query_params.get("repo_id", "")
@@ -65,15 +67,118 @@ async def trend(request: Request, session: SessionDep) -> JSONResponse:
         repo_ids=[int(repo_id)] if repo_id.isdigit() else None,
         person_ids=[int(person_id)] if person_id.isdigit() else None,
     )
-    return JSONResponse(
-        {
-            "labels": [p.day.isoformat() for p in series],
-            "commits": [p.commits for p in series],
-            "additions": [p.additions for p in series],
-            "deletions": [p.deletions for p in series],
-            "significance": [round(p.significance, 2) for p in series],
-        }
+    spec = ChartSpec(
+        kind="line",
+        labels=[p.day.isoformat() for p in series],
+        series=[
+            Series(name="Commits", values=[float(p.commits) for p in series]),
+            Series(
+                name="Significance",
+                values=[round(p.significance, 2) for p in series],
+                axis=1,
+            ),
+        ],
+        axes=["Commits", "Significance"],
+        description=f"Daily commits and significance, {period.label}",
+        zoom=len(series) > 60,
     )
+    return JSONResponse(render_echarts(spec))
+
+
+@router.get("/api/charts/repo-activity")
+async def chart_repo_activity(
+    request: Request, session: SessionDep, repo_id: int
+) -> JSONResponse:
+    """Stacked added and removed lines per day plus a commits line."""
+    scope = await get_scope(request, session)
+    period = parse_range(request)
+    series = await stats.timeseries(
+        session,
+        orgs=scope.selected_ids,
+        start=period.start,
+        end=period.end,
+        repo_ids=[repo_id],
+    )
+    spec = ChartSpec(
+        kind="bar",
+        labels=[p.day.isoformat() for p in series],
+        series=[
+            Series(
+                name="Additions",
+                values=[float(p.additions) for p in series],
+                kind="bar",
+                stack="lines",
+            ),
+            Series(
+                name="Deletions",
+                values=[float(p.deletions) for p in series],
+                kind="bar",
+                stack="lines",
+            ),
+            Series(
+                name="Commits",
+                values=[float(p.commits) for p in series],
+                axis=1,
+            ),
+        ],
+        axes=["Lines", "Commits"],
+        description=f"Daily line changes and commits, {period.label}",
+        zoom=len(series) > 60,
+    )
+    return JSONResponse(render_echarts(spec))
+
+
+@router.get("/api/charts/people-performance")
+async def chart_people_performance(
+    request: Request, session: SessionDep, limit: int = 8
+) -> JSONResponse:
+    """Diverging bars: who gained and who lost the most significance
+    versus the previous window of equal length."""
+    scope = await get_scope(request, session)
+    period = parse_range(request)
+    prev_start, prev_end = insight_context.previous_range(period.start, period.end)
+    board = await stats.person_leaderboard(
+        session, orgs=scope.selected_ids, start=period.start, end=period.end
+    )
+    prev_board = await stats.person_leaderboard(
+        session, orgs=scope.selected_ids, start=prev_start, end=prev_end
+    )
+    now = {s.person_id: s for s in board}
+    before = {s.person_id: s for s in prev_board}
+    deltas: list[tuple[str, float]] = []
+    for pid in now.keys() | before.keys():
+        name = (now.get(pid) or before[pid]).display_name
+        delta = (now[pid].significance if pid in now else 0.0) - (
+            before[pid].significance if pid in before else 0.0
+        )
+        deltas.append((name, round(delta, 1)))
+    gainers = sorted((d for d in deltas if d[1] > 0), key=lambda d: d[1], reverse=True)[
+        :limit
+    ]
+    decliners = sorted((d for d in deltas if d[1] < 0), key=lambda d: d[1])[:limit]
+    ordered = gainers + list(reversed(decliners))
+    up_color = palettes.DIVERGENT[12]
+    down_color = palettes.DIVERGENT[4]
+    spec = ChartSpec(
+        kind="hbar",
+        labels=[name for name, _ in ordered],
+        series=[
+            Series(
+                name="Significance change",
+                values=[value for _, value in ordered],
+                kind="bar",
+                item_colors=[
+                    up_color if value > 0 else down_color for _, value in ordered
+                ],
+            )
+        ],
+        axes=["Significance change vs previous period"],
+        description=(
+            "People whose significance grew or shrank the most versus the "
+            f"previous window, {period.label}"
+        ),
+    )
+    return JSONResponse(render_echarts(spec))
 
 
 @router.get("/partials/insight", response_class=HTMLResponse)
@@ -116,6 +221,8 @@ async def insight_partial(
         area = "repo"
         subject_key = f":r{repo_id}"
     else:
+        # dashboard plus the repos and people list pages: an overall status
+        # of the selected window, always present, recomputed per window.
         context = await insight_context.dashboard_context(
             session,
             orgs=scope.selected_ids,
@@ -125,11 +232,13 @@ async def insight_partial(
             period_label=period.label,
         )
         area = "dashboard"
-        subject_key = ""
+        subject_key = "" if view == "dashboard" else f":{view}"
 
     result = await insight_for(
         session,
-        view=f"{view}{subject_key}",
+        view=f"{view}{subject_key}"
+        if view in ("person", "repo")
+        else f"dashboard{subject_key}",
         scope_key=scope.key,
         period_key=period.key,
         context=context,

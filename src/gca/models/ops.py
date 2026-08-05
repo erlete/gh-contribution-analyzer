@@ -40,6 +40,27 @@ class SyncRun(Base):
     error: Mapped[str | None] = mapped_column(Text)
 
 
+class AuditEvent(Base):
+    """One operational fact: who did what to which subject, when.
+
+    Everything user- or system-initiated that changes state records one row:
+    syncs, report lifecycles, mail sendings, org and policy changes,
+    identity merges. The operations page reads this table.
+    """
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True
+    )
+    actor: Mapped[str] = mapped_column(String(20), default="admin")
+    kind: Mapped[str] = mapped_column(String(60), index=True)
+    subject: Mapped[str] = mapped_column(String(300), default="")
+    message: Mapped[str] = mapped_column(Text, default="")
+    data: Mapped[dict | None] = mapped_column(JSONVariant)  # type: ignore[type-arg]
+
+
 class JobLedger(Base):
     __tablename__ = "job_ledger"
     __table_args__ = (UniqueConstraint("job_key", "period_key"),)

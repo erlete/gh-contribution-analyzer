@@ -1,19 +1,21 @@
 {% extends "base.html" %}
+{% import "_components.html" as c %}
 {% block title %}Repositories, Contribution Analyzer{% endblock %}
 {% block content %}
 {% include "_rangebar.html" %}
+
+<div hx-get="/partials/insight?view=repos&range={{ period.key }}" hx-trigger="load" hx-swap="outerHTML">
+  <div class="insight"><div class="tag-line">Insight</div><div class="skeleton"></div></div>
+</div>
 
 <div class="panel">
   <h2>Active repositories ({{ board | length }})</h2>
   <input type="search" class="rowfilter" placeholder="Filter by name"
          data-filter-rows="#board-table" aria-label="Filter repositories">
-  <table id="board-table">
-    <tr>
-      <th>Repo</th><th class="num">Commits</th><th class="num">Added</th>
-      <th class="num">Deleted</th><th class="num">Churn</th>
-      <th class="num">Significance</th><th class="num">PRs merged</th>
-      <th class="num">Reviews</th><th class="num">People</th>
-    </tr>
+  {% call c.table("Repositories with activity in " ~ period.label,
+                  [("Repo",), ("Commits", "num"), ("Added", "num", "lines"), ("Deleted", "num", "lines"),
+                   ("Churn", "num", "lines"), ("Significance", "num"), ("PRs merged", "num"),
+                   ("Reviews", "num"), ("People", "num")], id="board-table") %}
     {% for r in board %}
     <tr>
       <td><a href="/repos/{{ r.repo_id }}">{{ r.org_login }}/{{ r.name }}</a></td>
@@ -27,30 +29,30 @@
       <td class="num">{{ r.contributors | int_fmt }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="9" class="muted">No repository activity in this period.</td></tr>
+    {{ c.empty_row(9, "No repository activity in this period.") }}
     {% endfor %}
-  </table>
+  {% endcall %}
 </div>
 
 {% if idle_repos %}
 <div class="panel">
   <h2>Quiet in this period ({{ idle_repos | length }})</h2>
-  <table>
-    <tr><th>Repo</th><th>Status</th><th>Default branch</th><th>Last fetched</th></tr>
+  {% call c.table("Repositories with no activity in " ~ period.label,
+                  [("Repo",), ("Status",), ("Default branch",), ("Last fetched",)]) %}
     {% for repo, login in idle_repos %}
     <tr>
       <td><a href="/repos/{{ repo.id }}">{{ login }}/{{ repo.name }}</a></td>
       <td>
-        {% if not repo.included %}<span class="pill">excluded</span>
-        {% elif repo.is_archived %}<span class="pill">archived</span>
-        {% elif repo.clone_status.value == 'error' %}<span class="pill bad">clone error</span>
-        {% else %}<span class="pill">{{ repo.clone_status.value }}</span>{% endif %}
+        {% if not repo.included %}{{ c.tag("excluded") }}
+        {% elif repo.is_archived %}{{ c.tag("archived", "purple") }}
+        {% elif repo.clone_status.value == 'error' %}{{ c.tag("clone error", "red") }}
+        {% else %}{{ c.tag(repo.clone_status.value) }}{% endif %}
       </td>
       <td>{{ repo.default_branch }}</td>
-      <td class="muted small">{{ repo.last_fetched_at or 'never' }}</td>
+      <td class="helper small">{{ repo.last_fetched_at or 'never' }}</td>
     </tr>
     {% endfor %}
-  </table>
+  {% endcall %}
 </div>
 {% endif %}
 {% endblock %}

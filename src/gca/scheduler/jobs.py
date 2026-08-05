@@ -23,6 +23,7 @@ from gca.models import (
 )
 from gca.reports.service import fulfill_report, generate_reports
 from gca.scheduler.periods import period_key, period_label, previous_period
+from gca.services import audit
 from gca.services.settings import SettingsStore
 from gca.sync.gitrepo import GitMirror, rmtree_robust
 from gca.sync.orchestrator import sync_org
@@ -229,6 +230,13 @@ async def process_report_queue(factory: SessionFactory) -> None:
                 if failed is not None:
                     failed.status = "failed"
                     failed.error = str(exc)[:2000]
+                    await audit.record(
+                        session,
+                        kind="report.failed",
+                        actor="worker",
+                        subject=failed.title,
+                        message=f"Report failed: {str(exc)[:300]}",
+                    )
                     await session.commit()
 
 

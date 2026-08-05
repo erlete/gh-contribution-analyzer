@@ -87,7 +87,20 @@ function initRowFilters(root) {
   });
 }
 
+/* Auto-submit: a [data-autosubmit] wrapper submits its form when the select
+   inside it changes. The submit button stays as the no-JS fallback. */
+function initAutosubmit(root) {
+  (root || document).querySelectorAll('[data-autosubmit] select').forEach(function (select) {
+    if (select.dataset.ready) return;
+    select.dataset.ready = '1';
+    select.addEventListener('change', function () {
+      if (select.form) select.form.submit();
+    });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   initListBuilders();
   initRowFilters();
+  initAutosubmit();
 });

@@ -2,10 +2,10 @@
   {% for key, item in range_choices.items() %}
   <a href="?range={{ key }}" class="{{ 'active' if period.key == key }}">{{ item[1] }}</a>
   {% endfor %}
-  <form method="get" style="display:flex;gap:0.4rem;align-items:center">
-    <input type="date" name="from" value="" title="From">
-    <input type="date" name="to" value="" title="To">
-    <button type="submit" class="secondary">Go</button>
+  <form method="get">
+    <input type="date" name="from" value="" title="From" aria-label="Custom range start">
+    <input type="date" name="to" value="" title="To" aria-label="Custom range end">
+    <button type="submit" class="secondary small">Go</button>
   </form>
   <span class="plabel">{{ period.label }}</span>
 </div>

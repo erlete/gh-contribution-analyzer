@@ -1,87 +1,70 @@
 {% extends "base.html" %}
+{% import "_components.html" as c %}
 {% block title %}Settings, Contribution Analyzer{% endblock %}
 {% block content %}
-<h1>Settings</h1>
+<h1 class="page-title">Settings</h1>
+<p class="muted small mb-05">
+  Everything here is configured in-app only; the deployment environment never
+  overrides it. Per-organization rules (filters, forks, members) live on the
+  <a href="/orgs">Orgs</a> page.
+</p>
 
 <div class="panel">
   <h2>Email delivery</h2>
-  <p class="muted small">
-    Active provider: <span class="pill accent">{{ mail_raw.get('provider', 'none') }}</span>
+  <p class="muted small mb-03">
+    Active provider: {{ c.tag(mail_raw.get('provider', 'none'), "blue" if mail_raw.get('provider') else "gray") }}
     {% if mail_status.get('last_success') %}| last success {{ mail_status.get('last_success') }}{% endif %}
-    {% if mail_status.get('last_error') %}| <span class="pill bad">last error: {{ mail_status.get('last_error') }}</span>{% endif %}
+    {% if mail_status.get('last_error') %}| {{ c.tag("last error: " ~ mail_status.get('last_error') | truncate(80), "red") }}{% endif %}
   </p>
   <div class="grid2">
     <div>
       <h3 class="subhead">Microsoft Graph</h3>
       <form method="post" action="/settings/mail/graph" class="stack">
         {% set g = mail_raw.get('graph', {}) %}
-        <label class="field">Client ID
-          <input type="text" name="client_id" value="{{ g.get('client_id', '') }}" required>
-        </label>
-        <label class="field">Client secret (leave empty to keep current)
-          <input type="password" name="client_secret" placeholder="{{ 'saved' if g.get('client_secret_enc') else 'required' }}">
-        </label>
-        <label class="field">Tenant ID
-          <input type="text" name="tenant_id" value="{{ g.get('tenant_id', '') }}" required>
-        </label>
-        <label class="field">Sender mailbox
-          <input type="email" name="sender" value="{{ g.get('sender', '') }}" required placeholder="noreply@example.com">
-        </label>
-        <button type="submit">Save and use Graph</button>
+        {{ c.text_field("client_id", "Client ID", value=g.get('client_id', ''), required=True) }}
+        {{ c.text_field("client_secret", "Client secret (leave empty to keep current)", type="password", placeholder="saved" if g.get('client_secret_enc') else "required") }}
+        {{ c.text_field("tenant_id", "Tenant ID", value=g.get('tenant_id', ''), required=True) }}
+        {{ c.text_field("sender", "Sender mailbox", type="email", value=g.get('sender', ''), required=True, placeholder="noreply@example.com") }}
+        <div class="actions"><button type="submit">Save and use Graph</button></div>
       </form>
     </div>
     <div>
       <h3 class="subhead">SMTP</h3>
       <form method="post" action="/settings/mail/smtp" class="stack">
         {% set s = mail_raw.get('smtp', {}) %}
-        <label class="field">Host
-          <input type="text" name="host" value="{{ s.get('host', '') }}" required>
-        </label>
+        {{ c.text_field("host", "Host", value=s.get('host', ''), required=True) }}
         <div class="actions">
-          <label class="field">Port <input type="number" name="port" value="{{ s.get('port', 587) }}"></label>
-          <label class="field" style="align-self:end">
-            <span><input type="checkbox" name="starttls" {{ 'checked' if s.get('starttls', True) }}> STARTTLS</span>
-          </label>
+          {{ c.text_field("port", "Port", type="number", value=s.get('port', 587)) }}
+          {{ c.checkbox("starttls", "STARTTLS", checked=s.get('starttls', True)) }}
         </div>
-        <label class="field">Username <input type="text" name="username" value="{{ s.get('username', '') }}"></label>
-        <label class="field">Password (leave empty to keep current)
-          <input type="password" name="password" placeholder="{{ 'saved' if s.get('password_enc') else 'optional' }}">
-        </label>
-        <label class="field">Sender address
-          <input type="email" name="sender" value="{{ s.get('sender', '') }}">
-        </label>
-        <button type="submit">Save and use SMTP</button>
+        {{ c.text_field("username", "Username", value=s.get('username', '')) }}
+        {{ c.text_field("password", "Password (leave empty to keep current)", type="password", placeholder="saved" if s.get('password_enc') else "optional") }}
+        {{ c.text_field("sender", "Sender address", type="email", value=s.get('sender', '')) }}
+        <div class="actions"><button type="submit">Save and use SMTP</button></div>
       </form>
     </div>
   </div>
-  <h3 class="subhead" style="margin-top:1.2rem">Test delivery</h3>
+  <h3 class="subhead">Test delivery</h3>
   <form method="post" action="/settings/mail/test" class="actions">
-    <input type="email" name="to" placeholder="you@example.com" required style="max-width:260px">
+    <input type="email" name="to" placeholder="you@example.com" required
+           class="maxw-field" aria-label="Test recipient">
     <button type="submit" class="secondary">Send test email</button>
   </form>
 </div>
 
 <div class="panel">
   <h2>AI insights</h2>
-  <p class="muted small">
+  <p class="muted small mb-03">
     OpenAI-compatible endpoint. When AI is disabled or unreachable, every
     insight area falls back to plain data statements with the same structure;
     AI-generated text carries the AI chip.
   </p>
   <div class="grid2">
     <form method="post" action="/settings/ai" class="stack">
-      <label class="field">Service URL
-        <input type="text" name="url" value="{{ ai_raw.get('url', '') }}" placeholder="https://ai.example.com/v1">
-      </label>
-      <label class="field">API key (leave empty to keep current)
-        <input type="password" name="key" placeholder="{{ 'saved' if ai_raw.get('key_enc') else 'optional' }}">
-      </label>
-      <label class="field">Model
-        <input type="text" name="model" value="{{ ai_raw.get('model', '') }}" placeholder="qwen-max">
-      </label>
-      <div class="actions">
-        <button type="submit">Save</button>
-      </div>
+      {{ c.text_field("url", "Service URL", value=ai_raw.get('url', ''), placeholder="https://ai.example.com/v1") }}
+      {{ c.text_field("key", "API key (leave empty to keep current)", type="password", placeholder="saved" if ai_raw.get('key_enc') else "optional") }}
+      {{ c.text_field("model", "Model", value=ai_raw.get('model', ''), placeholder="qwen-max") }}
+      <div class="actions"><button type="submit">Save</button></div>
     </form>
     <div>
       <form method="post" action="/settings/ai/test">
@@ -90,29 +73,22 @@
     </div>
   </div>
 
-  <h3 class="subhead" style="margin-top:1.2rem">Generation instructions</h3>
-  <p class="muted small">
-    Optional operator guidance per generation area, appended to every AI
-    prompt for that area. Use it to steer tone or focus, for example
-    "highlight review activity" or "compare against the previous period".
-    Changes apply to newly generated insights.
+  <h3 class="subhead">Generation instructions</h3>
+  <p class="muted small mb-03">
+    Optional operator guidance per generation area. Your instructions take
+    precedence over the built-in defaults (length, tone, structure) wherever
+    they conflict; only factuality is non-negotiable. Saving changes discards
+    the affected cached comments so everything regenerates with the new
+    guidance.
   </p>
   <form method="post" action="/settings/ai/instructions">
     <div class="grid2">
-      <label class="field">Dashboard overview
-        <textarea name="dashboard" rows="3" placeholder="Extra guidance for the dashboard insight">{{ ai_instructions.get('dashboard', '') }}</textarea>
-      </label>
-      <label class="field">Person views
-        <textarea name="person" rows="3" placeholder="Extra guidance for per-person insights">{{ ai_instructions.get('person', '') }}</textarea>
-      </label>
-      <label class="field">Repository views
-        <textarea name="repo" rows="3" placeholder="Extra guidance for per-repository insights">{{ ai_instructions.get('repo', '') }}</textarea>
-      </label>
-      <label class="field">Reports
-        <textarea name="report" rows="3" placeholder="Extra guidance for PDF report narratives">{{ ai_instructions.get('report', '') }}</textarea>
-      </label>
+      {{ c.textarea_field("dashboard", "Dashboard and list overviews", value=ai_instructions.get('dashboard', ''), rows=3, placeholder="Extra guidance for overview insights") }}
+      {{ c.textarea_field("person", "Person views", value=ai_instructions.get('person', ''), rows=3, placeholder="Extra guidance for per-person insights") }}
+      {{ c.textarea_field("repo", "Repository views", value=ai_instructions.get('repo', ''), rows=3, placeholder="Extra guidance for per-repository insights") }}
+      {{ c.textarea_field("report", "Reports", value=ai_instructions.get('report', ''), rows=3, placeholder="Extra guidance for PDF report narratives") }}
     </div>
-    <div class="actions" style="margin-top:0.6rem">
+    <div class="actions mt-03">
       <button type="submit">Save instructions</button>
     </div>
   </form>
@@ -120,29 +96,32 @@
 
 <div class="panel">
   <h2>Report recipients</h2>
-  <table>
-    <tr><th>Email</th><th>Note</th><th>Status</th><th></th></tr>
+  {% call c.table("Everyone who receives scheduled and manually emailed reports",
+                  [("Email",), ("Note",), ("Status",), ("",)]) %}
     {% for r in recipients %}
     <tr>
       <td>{{ r.email }}</td>
-      <td class="small muted">{{ r.note or '' }}</td>
-      <td><span class="pill {{ 'good' if r.active else '' }}">{{ 'active' if r.active else 'paused' }}</span></td>
-      <td class="actions">
-        <form method="post" action="/settings/recipients/{{ r.id }}/toggle">
-          <button type="submit" class="secondary">{{ 'Pause' if r.active else 'Activate' }}</button>
-        </form>
-        <form method="post" action="/settings/recipients/{{ r.id }}/delete">
-          <button type="submit" class="danger">Delete</button>
-        </form>
+      <td class="helper small">{{ r.note or '' }}</td>
+      <td>{{ c.status_tag("ok" if r.active else "paused") }}</td>
+      <td>
+        <div class="actions">
+          <form method="post" action="/settings/recipients/{{ r.id }}/toggle">
+            <button type="submit" class="secondary small">{{ 'Pause' if r.active else 'Activate' }}</button>
+          </form>
+          <form method="post" action="/settings/recipients/{{ r.id }}/delete">
+            <button type="submit" class="danger small">Delete</button>
+          </form>
+        </div>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="4" class="muted">No recipients yet.</td></tr>
+    {{ c.empty_row(4, "No recipients yet. Add the first one below.") }}
     {% endfor %}
-  </table>
-  <form method="post" action="/settings/recipients/add" class="actions" style="margin-top:0.6rem">
-    <input type="email" name="email" placeholder="person@example.com" required style="max-width:240px">
-    <input type="text" name="note" placeholder="note" style="max-width:160px">
+  {% endcall %}
+  <form method="post" action="/settings/recipients/add" class="actions mt-03">
+    <input type="email" name="email" placeholder="person@example.com" required
+           class="maxw-field" aria-label="Recipient email">
+    <input type="text" name="note" placeholder="note" class="maxw-field" aria-label="Note">
     <button type="submit" class="secondary">Add recipient</button>
   </form>
 </div>

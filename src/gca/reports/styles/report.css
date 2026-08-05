@@ -1,0 +1,168 @@
+/* Print component layer for WeasyPrint, Carbon g90. Reports are digital
+   documents: same dark theme as the dashboard. Every value resolves to a
+   token from tokens-print.css. Layout uses block and table display only;
+   flex and grid paginate unreliably in WeasyPrint. */
+
+@page {
+  size: A4;
+  margin: 18mm 16mm;
+  background: var(--bg-base);
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-family: var(--font-sans);
+    font-size: var(--type-legal-01-size);
+    color: var(--text-helper);
+  }
+  @bottom-left {
+    content: "gh-contribution-analyzer";
+    font-family: var(--font-sans);
+    font-size: var(--type-legal-01-size);
+    color: var(--text-helper);
+  }
+}
+
+html { background: var(--bg-base); }
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--type-label-01-size);
+  line-height: 1.4;
+}
+
+h1 {
+  font-size: var(--type-heading-04-size);
+  font-weight: var(--fw-light);
+  margin: 0 0 var(--sp-02);
+}
+
+h2 {
+  font-size: var(--type-heading-01-size);
+  font-weight: var(--fw-semibold);
+  margin: var(--sp-06) 0 var(--sp-03);
+  break-after: avoid;
+}
+
+.sub {
+  color: var(--text-secondary);
+  margin-bottom: var(--sp-05);
+}
+
+.intro { margin: var(--sp-04) 0; }
+
+/* KPI row: inline-block tiles wrap and paginate safely. */
+.kpis { margin: 0; }
+.kpi {
+  display: inline-block;
+  vertical-align: top;
+  background: var(--bg-layer-01);
+  padding: var(--sp-03) var(--sp-04);
+  margin: 0 var(--sp-02) var(--sp-02) 0;
+  min-width: var(--sp-11);
+  break-inside: avoid;
+}
+.kpi .v {
+  font-size: var(--type-body-02-size);
+  font-weight: var(--fw-light);
+  font-variant-numeric: tabular-nums;
+}
+.kpi .l {
+  font-size: var(--type-legal-01-size);
+  color: var(--text-secondary);
+  margin-top: var(--sp-01);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--sp-03);
+  font-variant-numeric: tabular-nums;
+}
+caption {
+  text-align: left;
+  color: var(--text-helper);
+  font-size: var(--type-legal-01-size);
+  padding-bottom: var(--sp-02);
+}
+th {
+  text-align: left;
+  background: var(--bg-layer-01);
+  color: var(--text-primary);
+  font-weight: var(--fw-semibold);
+  padding: var(--sp-02) var(--sp-03);
+  border-bottom: var(--hairline) solid var(--border-strong-01);
+}
+td {
+  padding: var(--sp-02) var(--sp-03);
+  border-bottom: var(--hairline) solid var(--border-subtle-01);
+}
+tr { break-inside: avoid; }
+td.num, th.num { text-align: right; }
+
+.chart { margin-top: var(--sp-03); break-inside: avoid; }
+.chart svg { width: 100%; height: auto; }
+
+.bar {
+  background: var(--bg-layer-02);
+  height: var(--sp-02);
+  width: var(--sp-10);
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: var(--sp-02);
+}
+.bar div { background: var(--int-primary); height: var(--sp-02); }
+
+.narrative {
+  position: relative;
+  background: var(--bg-layer-01);
+  border-left: var(--sp-01) solid var(--border-interactive);
+  padding: var(--sp-04) var(--sp-11) var(--sp-04) var(--sp-04);
+  margin-top: var(--sp-03);
+  break-inside: avoid;
+}
+.ai-chip {
+  position: absolute;
+  top: var(--sp-03);
+  right: var(--sp-03);
+  border: var(--hairline) solid var(--tag-blue-border);
+  color: var(--tag-blue-text);
+  border-radius: var(--radius-pill);
+  padding: 0 var(--sp-02);
+  font-size: var(--type-legal-01-size);
+  font-weight: var(--fw-semibold);
+}
+
+ol.toc {
+  list-style: none;
+  margin: var(--sp-03) 0;
+  padding: 0;
+  column-count: 2;
+  column-gap: var(--sp-06);
+}
+ol.toc li {
+  padding: var(--sp-01) 0;
+  border-bottom: var(--hairline) dotted var(--border-subtle-01);
+}
+ol.toc a { color: var(--text-primary); text-decoration: none; }
+ol.toc a::after {
+  content: " " target-counter(attr(href), page);
+  float: right;
+  color: var(--text-secondary);
+}
+
+section.section { break-before: page; }
+section.section h2.section-title {
+  font-size: var(--type-heading-03-size);
+  font-weight: var(--fw-regular);
+  margin: 0 0 var(--sp-02);
+  border-bottom: var(--hairline) solid var(--border-interactive);
+  padding-bottom: var(--sp-02);
+}
+
+.footer-note {
+  color: var(--text-helper);
+  font-size: var(--type-legal-01-size);
+  margin-top: var(--sp-06);
+}

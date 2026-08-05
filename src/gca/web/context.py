@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gca.models import Org
 
 SCOPE_COOKIE = "org_scope"
+PERIOD_COOKIE = "period"
 
 RANGE_CHOICES: dict[str, tuple[int | None, str]] = {
     "7d": (7, "Last 7 days"),
@@ -68,23 +69,39 @@ async def get_scope(request: Request, session: AsyncSession) -> Scope:
     return Scope(orgs=orgs, selected_ids=selected)
 
 
+def _custom_period(custom_from: str, custom_to: str) -> Period | None:
+    today = date.today()
+    end = today + timedelta(days=1)
+    try:
+        start = date.fromisoformat(custom_from)
+        if custom_to:
+            end = date.fromisoformat(custom_to) + timedelta(days=1)
+    except ValueError:
+        return None
+    label = f"{start.isoformat()} to {(end - timedelta(days=1)).isoformat()}"
+    return Period(start=start, end=end, key=f"{start}:{end}", label=label)
+
+
 def parse_range(request: Request) -> Period:
+    """Resolve the selected window: explicit query params win, then the
+    period cookie (so the selection survives navigation), then the default."""
     today = date.today()
     end = today + timedelta(days=1)
     custom_from = request.query_params.get("from", "")
     custom_to = request.query_params.get("to", "")
     if custom_from:
-        try:
-            start = date.fromisoformat(custom_from)
-            if custom_to:
-                end = date.fromisoformat(custom_to) + timedelta(days=1)
-            label = f"{start.isoformat()} to {(end - timedelta(days=1)).isoformat()}"
-            return Period(start=start, end=end, key=f"{start}:{end}", label=label)
-        except ValueError:
-            pass
-    key = request.query_params.get("range", DEFAULT_RANGE)
+        period = _custom_period(custom_from, custom_to)
+        if period is not None:
+            return period
+    key = request.query_params.get("range", "")
     if key not in RANGE_CHOICES:
-        key = DEFAULT_RANGE
+        cookie = request.cookies.get(PERIOD_COOKIE, "")
+        if cookie.startswith("custom:"):
+            parts = cookie.split(":", 2)
+            period = _custom_period(parts[1], parts[2] if len(parts) > 2 else "")
+            if period is not None:
+                return period
+        key = cookie if cookie in RANGE_CHOICES else DEFAULT_RANGE
     days, label = RANGE_CHOICES[key]
     start = _EPOCH if days is None else today - timedelta(days=days - 1)
     return Period(start=start, end=end, key=key, label=label)

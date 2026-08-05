@@ -4,13 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Setup, Contribution Analyzer</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
+{% import "_components.html" as c %}
 <div class="setup-shell">
   <div class="setup-box panel">
     <h1>First things first</h1>
-    <p class="muted">
+    <p class="muted mb-05">
       Connect your first GitHub organization. Use a fine-grained personal
       access token whose resource owner is the organization, with read access
       to repository contents, metadata and pull requests. Only organizations
@@ -20,13 +22,11 @@
     <div class="banner error">{{ error }}</div>
     {% endif %}
     <form method="post" action="/setup" class="stack">
-      <label class="field">Organization login
-        <input type="text" name="login" required value="{{ login or '' }}" placeholder="my-org">
-      </label>
-      <label class="field">Fine-grained personal access token
-        <input type="password" name="token" required placeholder="github_pat_...">
-      </label>
-      <button type="submit">Validate and connect</button>
+      {{ c.text_field("login", "Organization login", value=login or "", placeholder="my-org", required=True) }}
+      {{ c.text_field("token", "Fine-grained personal access token", type="password", placeholder="github_pat_...", required=True) }}
+      <div class="actions">
+        <button type="submit">Validate and connect</button>
+      </div>
     </form>
   </div>
 </div>

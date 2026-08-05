@@ -184,7 +184,7 @@
 
   .cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(var(--field-max), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(var(--sp-13), 1fr));
     gap: var(--sp-03);
     margin-bottom: var(--sp-05);
   }

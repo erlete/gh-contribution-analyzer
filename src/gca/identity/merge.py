@@ -3,6 +3,7 @@
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gca.identity import suggest
 from gca.identity.resolver import normalize_text
 from gca.metrics.rollup import recompute_for_persons
 from gca.models import (
@@ -70,6 +71,11 @@ async def merge_persons(
     await session.delete(source)
     await session.flush()
     await recompute_for_persons(session, [target_id])
+
+    # Deleting the pair's suggestions above also removed any other pair that
+    # referenced either person; rescore the survivor so still-relevant
+    # suggestions reappear without waiting for the next full scan.
+    await suggest.generate_for_person(session, target_id)
     return target
 
 

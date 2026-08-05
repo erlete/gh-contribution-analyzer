@@ -5,46 +5,65 @@
 
 <div class="panel">
   <h2>Merge suggestions</h2>
+  <p class="muted small">
+    Merging moves every identity of the absorbed person onto the kept person,
+    then deletes the absorbed person. The kept person keeps its display name.
+    Pick which one survives with the buttons on each row.
+  </p>
   <form method="post" action="/manage/suggest/run" style="margin-bottom:0.8rem">
     <button type="submit" class="secondary">Scan for new suggestions</button>
   </form>
   <table>
-    <tr><th>Candidate pair</th><th>Why</th><th class="num">Score</th><th></th></tr>
+    <tr><th>Candidate pair</th><th>Why</th><th class="num">Score</th><th>Merge</th><th></th></tr>
     {% for s in suggestions %}
     {% set pa = person_by_id.get(s.person_a_id) %}
     {% set pb = person_by_id.get(s.person_b_id) %}
+    {% set name_a = pa.display_name if pa else s.person_a_id %}
+    {% set name_b = pb.display_name if pb else s.person_b_id %}
     <tr>
       <td>
-        <a href="/people/{{ s.person_a_id }}">{{ pa.display_name if pa else s.person_a_id }}</a>
+        <a href="/people/{{ s.person_a_id }}">{{ name_a }}</a>
         +
-        <a href="/people/{{ s.person_b_id }}">{{ pb.display_name if pb else s.person_b_id }}</a>
+        <a href="/people/{{ s.person_b_id }}">{{ name_b }}</a>
       </td>
       <td class="small muted">{{ (s.reasons or []) | join('; ') }}</td>
       <td class="num"><span class="pill accent">{{ (s.score * 100) | round | int }}%</span></td>
       <td class="actions">
         <form method="post" action="/manage/suggestions/{{ s.id }}/accept">
-          <button type="submit">Merge</button>
+          <input type="hidden" name="keep" value="{{ s.person_a_id }}">
+          <button type="submit" title="Absorb {{ name_b }} into {{ name_a }}">Keep {{ name_a }}</button>
         </form>
+        <form method="post" action="/manage/suggestions/{{ s.id }}/accept">
+          <input type="hidden" name="keep" value="{{ s.person_b_id }}">
+          <button type="submit" title="Absorb {{ name_a }} into {{ name_b }}">Keep {{ name_b }}</button>
+        </form>
+      </td>
+      <td>
         <form method="post" action="/manage/suggestions/{{ s.id }}/dismiss">
           <button type="submit" class="secondary">Dismiss</button>
         </form>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="4" class="muted">No pending suggestions.</td></tr>
+    <tr><td colspan="5" class="muted">No pending suggestions.</td></tr>
     {% endfor %}
   </table>
 </div>
 
 <div class="panel">
   <h2>Manual merge</h2>
+  <p class="muted small">
+    The person under <strong>Keep</strong> survives with its display name.
+    The person under <strong>Absorb</strong> hands over all its identities and
+    activity, then disappears.
+  </p>
   <form method="post" action="/manage/merge" class="actions">
-    <label class="field">Keep
+    <label class="field">Keep (survives)
       <select name="target_id">
         {% for p in persons %}<option value="{{ p.id }}">{{ p.display_name }}</option>{% endfor %}
       </select>
     </label>
-    <label class="field">Absorb
+    <label class="field">Absorb (disappears into Keep)
       <select name="source_id">
         {% for p in persons %}<option value="{{ p.id }}">{{ p.display_name }}</option>{% endfor %}
       </select>
@@ -55,7 +74,9 @@
 
 <div class="panel">
   <h2>People and identities ({{ persons | length }})</h2>
-  <table>
+  <input type="search" class="rowfilter" placeholder="Filter by name, login or email"
+         data-filter-rows="#people-table" aria-label="Filter people">
+  <table id="people-table">
     <tr><th>Person</th><th>Identities</th><th>Rename</th></tr>
     {% for p in persons %}
     <tr>
@@ -92,14 +113,16 @@
       <label><input type="radio" name="mode" value="whitelist" {{ 'checked' if org.person_filter_mode.value == 'whitelist' }}> Only listed</label>
       <label><input type="radio" name="mode" value="blacklist" {{ 'checked' if org.person_filter_mode.value == 'blacklist' }}> All except listed</label>
     </div>
-    <div style="columns: 3; max-width: 800px">
-      {% for p in persons %}
-      <label style="display:block">
-        <input type="checkbox" name="person_ids" value="{{ p.id }}"
-               {{ 'checked' if p.id in filters_by_org.get(org.id, []) }}>
-        {{ p.display_name }}
-      </label>
-      {% endfor %}
+    <div class="list-builder" data-field="person_ids"
+         data-values='{{ filter_entries.get(org.id, []) | tojson }}'>
+      <div class="lb-add">
+        <select aria-label="Add person to the list">
+          {% for p in persons %}<option value="{{ p.id }}">{{ p.display_name }}</option>{% endfor %}
+        </select>
+        <button type="button" class="secondary">Add</button>
+      </div>
+      <div class="lb-empty">No people listed.</div>
+      <ul class="lb-items"></ul>
     </div>
     <div class="actions" style="margin-top:0.6rem"><button type="submit">Save filter</button></div>
   </form>

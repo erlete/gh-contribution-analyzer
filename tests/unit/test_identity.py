@@ -131,6 +131,45 @@ async def test_merge_and_unmerge(session: AsyncSession) -> None:
     assert refreshed is not None and refreshed.person_id == fresh.id
 
 
+async def test_merge_regenerates_suggestions_for_survivor(
+    session: AsyncSession,
+) -> None:
+    """After a merge deletes suggestions touching the pair, still-relevant
+    pairs for the surviving person must reappear immediately."""
+    a = await get_or_create_git_identity(session, name="Jane", email="jane@x.com")
+    b = await get_or_create_git_identity(session, name="J. Doe", email="jane@x.com")
+    c = await get_or_create_git_identity(session, name="JaneD", email="jane@x.com")
+    created = await suggest.generate(session)
+    assert created == 3  # every pair shares the email
+
+    target = await merge_persons(session, a.person_id, b.person_id)
+    pending = (
+        (
+            await session.execute(
+                suggest.sa.select(MergeSuggestion).where(
+                    MergeSuggestion.status == "pending"
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    pairs = {(s.person_a_id, s.person_b_id) for s in pending}
+    low, high = sorted((target.id, c.person_id))
+    assert (low, high) in pairs
+
+
+async def test_generate_for_person_skips_existing_and_unrelated(
+    session: AsyncSession,
+) -> None:
+    a = await get_or_create_git_identity(session, name="Jane", email="jane@x.com")
+    await get_or_create_git_identity(session, name="J Doe", email="jane@x.com")
+    await get_or_create_git_identity(session, name="Bob", email="bob@y.com")
+    created = await suggest.generate_for_person(session, a.person_id)
+    assert created == 1  # only the shared-email pair, Bob does not score
+    assert await suggest.generate_for_person(session, a.person_id) == 0
+
+
 async def test_merge_guards(session: AsyncSession) -> None:
     a = await get_or_create_git_identity(session, name="Solo", email="solo@x.com")
     with pytest.raises(MergeError):

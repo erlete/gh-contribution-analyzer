@@ -52,9 +52,15 @@ async def manage_view(request: Request, session: SessionDep) -> Response:
     )
     person_by_id = {p.id: p for p in persons}
     filters = (await session.execute(sa.select(PersonFilter))).scalars().all()
-    filters_by_org: dict[int, list[int]] = {}
+    filter_entries: dict[int, list[dict[str, str]]] = {}
     for row in filters:
-        filters_by_org.setdefault(row.org_id, []).append(row.person_id)
+        person = person_by_id.get(row.person_id)
+        filter_entries.setdefault(row.org_id, []).append(
+            {
+                "value": str(row.person_id),
+                "label": person.display_name if person else str(row.person_id),
+            }
+        )
     return templates.TemplateResponse(
         request,
         "manage.html",
@@ -63,7 +69,7 @@ async def manage_view(request: Request, session: SessionDep) -> Response:
             "suggestions": suggestions,
             "persons": persons,
             "person_by_id": person_by_id,
-            "filters_by_org": filters_by_org,
+            "filter_entries": filter_entries,
             "mail_error": None,
         },
     )
@@ -80,13 +86,23 @@ async def run_suggestions(session: SessionDep) -> RedirectResponse:
 
 @router.post("/manage/suggestions/{suggestion_id}/accept")
 async def accept_suggestion(
-    session: SessionDep, suggestion_id: int
+    session: SessionDep,
+    suggestion_id: int,
+    keep: Annotated[int, Form()],
 ) -> RedirectResponse:
+    """Merge a suggested pair. `keep` picks the survivor explicitly: the other
+    person's identities move onto it and the other person disappears."""
     suggestion = await session.get_one(MergeSuggestion, suggestion_id)
+    pair = {suggestion.person_a_id, suggestion.person_b_id}
+    if keep not in pair:
+        return RedirectResponse(
+            "/manage?msg=Merge failed: keep must be one of the suggested pair",
+            status_code=303,
+        )
+    source_id = (pair - {keep}).pop()
     try:
-        await merge_persons(session, suggestion.person_a_id, suggestion.person_b_id)
+        message = await _merge_with_names(session, target_id=keep, source_id=source_id)
         await session.commit()
-        message = "Merged"
     except MergeError as exc:
         await session.rollback()
         message = f"Merge failed: {exc}"
@@ -103,6 +119,16 @@ async def dismiss_suggestion(
     return RedirectResponse("/manage?msg=Suggestion dismissed", status_code=303)
 
 
+async def _merge_with_names(
+    session: AsyncSession, *, target_id: int, source_id: int
+) -> str:
+    """Run the merge and return a message naming absorbed and survivor."""
+    source = await session.get(Person, source_id)
+    source_name = source.display_name if source else str(source_id)
+    target = await merge_persons(session, target_id, source_id)
+    return f"Merged {source_name} into {target.display_name}"
+
+
 @router.post("/manage/merge")
 async def manual_merge(
     session: SessionDep,
@@ -110,9 +136,10 @@ async def manual_merge(
     source_id: Annotated[int, Form()],
 ) -> RedirectResponse:
     try:
-        await merge_persons(session, target_id, source_id)
+        message = await _merge_with_names(
+            session, target_id=target_id, source_id=source_id
+        )
         await session.commit()
-        message = "Merged"
     except MergeError as exc:
         await session.rollback()
         message = f"Merge failed: {exc}"

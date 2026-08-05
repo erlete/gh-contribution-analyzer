@@ -142,12 +142,8 @@ async def load_person_views(session: AsyncSession) -> list[PersonView]:
     return list(views.values())
 
 
-async def generate(
-    session: AsyncSession, threshold: float = SUGGESTION_THRESHOLD
-) -> int:
-    """Insert pending suggestions for every scoring pair. Returns new count."""
-    views = await load_person_views(session)
-    existing_pairs = {
+async def _existing_pairs(session: AsyncSession) -> set[tuple[int, int]]:
+    return {
         (row.person_a_id, row.person_b_id)
         for row in (
             await session.execute(
@@ -155,6 +151,14 @@ async def generate(
             )
         ).all()
     }
+
+
+async def generate(
+    session: AsyncSession, threshold: float = SUGGESTION_THRESHOLD
+) -> int:
+    """Insert pending suggestions for every scoring pair. Returns new count."""
+    views = await load_person_views(session)
+    existing_pairs = await _existing_pairs(session)
     created = 0
     for i, a in enumerate(views):
         for b in views[i + 1 :]:
@@ -174,5 +178,44 @@ async def generate(
             )
             existing_pairs.add((low, high))
             created += 1
+    await session.flush()
+    return created
+
+
+async def generate_for_person(
+    session: AsyncSession, person_id: int, threshold: float = SUGGESTION_THRESHOLD
+) -> int:
+    """Insert pending suggestions pairing one person against everyone else.
+
+    Merges delete every suggestion that referenced the merged persons, so the
+    surviving person is rescored right away: without this, a related pair
+    (for example a second identity of the same human) would stay invisible
+    until the next full scan.
+    """
+    views = await load_person_views(session)
+    me = next((v for v in views if v.id == person_id), None)
+    if me is None:
+        return 0
+    existing_pairs = await _existing_pairs(session)
+    created = 0
+    for other in views:
+        if other.id == me.id:
+            continue
+        low, high = sorted((me.id, other.id))
+        if (low, high) in existing_pairs:
+            continue
+        score, reasons = score_pair(me, other)
+        if score < threshold:
+            continue
+        session.add(
+            MergeSuggestion(
+                person_a_id=low,
+                person_b_id=high,
+                score=round(score, 4),
+                reasons=reasons,
+            )
+        )
+        existing_pairs.add((low, high))
+        created += 1
     await session.flush()
     return created

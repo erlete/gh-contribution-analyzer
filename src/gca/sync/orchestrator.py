@@ -340,6 +340,7 @@ async def _sync_repo(
                 mirror.clone_or_fetch(url, token)
                 tip = mirror.branch_tip(default_branch)
                 if tip and tip != last_oid:
+                    mirror.backfill_blobs()
                     return mirror.log_numstat(default_branch, last_oid)
                 return []
 
@@ -360,6 +361,10 @@ async def _sync_repo(
             if raw:
                 stats = await ingest_repo(session, repo, raw)
                 new_commits = stats.new_commits
+                if new_commits > 500:
+                    # Initial history ingest pulled a lot of blob data; drop it
+                    # right away instead of waiting for weekly maintenance.
+                    await asyncio.to_thread(mirror.repack)
 
             prs = await client.pull_requests_since(
                 org_login, repo.name, ensure_utc(repo.pr_synced_at)

@@ -210,6 +210,29 @@ class GitMirror:
             commits.append(commit)
         return commits
 
+    def backfill_blobs(self, batch_size: int = 4000) -> int:
+        """Bulk-fetch missing blobs before history extraction.
+
+        Full-history numstat needs nearly every blob anyway; fetching them in
+        large batches replaces thousands of per-blob promisor connections
+        (which exhaust connections and time out) with a handful of transfers.
+        """
+        result = self._run(
+            "rev-list",
+            "--objects",
+            "--missing=print",
+            "--no-object-names",
+            "--all",
+            cwd=self.path,
+        )
+        missing = [
+            line[1:] for line in result.stdout.splitlines() if line.startswith("?")
+        ]
+        for start in range(0, len(missing), batch_size):
+            chunk = missing[start : start + batch_size]
+            self._run("fetch", "origin", "--no-tags", *chunk, cwd=self.path)
+        return len(missing)
+
     def repack(self) -> None:
         """Drop lazily fetched blob bodies, returning the clone to slim state."""
         self._run("repack", "-a", "-d", "--filter=blob:none", cwd=self.path)

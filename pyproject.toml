@@ -1,6 +1,6 @@
 [project]
 name = "gca"
-version = "0.1.0"
+version = "0.1.1"
 description = "Multi-org GitHub contribution analyzer with metrics, reports and scheduled email delivery"
 readme = "README.md"
 requires-python = ">=3.14"

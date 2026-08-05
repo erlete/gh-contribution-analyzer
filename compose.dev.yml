@@ -15,8 +15,11 @@ services:
     build: .
     image: gh-contribution-analyzer:dev
     command: uvicorn gca.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src
+    # Loopback only: this port bypasses Caddy and its basic auth entirely
+    # (a dev convenience for direct app access); it must never be reachable
+    # from the network.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       APP_SECRET_KEY: ${APP_SECRET_KEY:-mr-qnw-SwqyywZTKYwVqY4163BDQIZGpBE1ox7e0eiM=}
       PYTHONPATH: /app/src
@@ -40,14 +43,14 @@ services:
     environment:
       POSTGRES_PASSWORD: gca
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
   mailpit:
     image: axllent/mailpit:v1.30
     restart: unless-stopped
     ports:
-      - "8025:8025"
-      - "1025:1025"
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
     environment:
       MP_DATABASE: /data/mailpit.db
     volumes:

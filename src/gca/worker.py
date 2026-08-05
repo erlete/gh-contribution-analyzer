@@ -21,7 +21,7 @@ async def _run() -> None:
     scheduler = AsyncIOScheduler(timezone="UTC")
     scheduler.add_job(
         jobs.sync_all_orgs,
-        IntervalTrigger(hours=6, jitter=300),
+        IntervalTrigger(hours=1, jitter=120),
         args=[factory],
         next_run_time=datetime.now(UTC) + timedelta(seconds=20),
         max_instances=1,

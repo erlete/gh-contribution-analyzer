@@ -189,16 +189,16 @@ def upgrade() -> None:
         "identities",
         ["name_norm", "email_norm"],
         unique=True,
-        postgresql_where="kind = 'git_author'",
-        sqlite_where="kind = 'git_author'",
+        postgresql_where=sa.text("kind = 'git_author'"),
+        sqlite_where=sa.text("kind = 'git_author'"),
     )
     op.create_index(
         "ix_identities_github_login_key",
         "identities",
         ["login_norm"],
         unique=True,
-        postgresql_where="kind = 'github_login'",
-        sqlite_where="kind = 'github_login'",
+        postgresql_where=sa.text("kind = 'github_login'"),
+        sqlite_where=sa.text("kind = 'github_login'"),
     )
     op.create_index(
         op.f("ix_identities_person_id"), "identities", ["person_id"], unique=False
@@ -667,14 +667,14 @@ def downgrade() -> None:
     op.drop_index(
         "ix_identities_github_login_key",
         table_name="identities",
-        postgresql_where="kind = 'github_login'",
-        sqlite_where="kind = 'github_login'",
+        postgresql_where=sa.text("kind = 'github_login'"),
+        sqlite_where=sa.text("kind = 'github_login'"),
     )
     op.drop_index(
         "ix_identities_git_author_key",
         table_name="identities",
-        postgresql_where="kind = 'git_author'",
-        sqlite_where="kind = 'git_author'",
+        postgresql_where=sa.text("kind = 'git_author'"),
+        sqlite_where=sa.text("kind = 'git_author'"),
     )
     op.drop_table("identities")
     op.drop_table("settings")

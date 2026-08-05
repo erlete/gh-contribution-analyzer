@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,15 +49,15 @@ class Identity(Base):
             "name_norm",
             "email_norm",
             unique=True,
-            postgresql_where="kind = 'git_author'",
-            sqlite_where="kind = 'git_author'",
+            postgresql_where=text("kind = 'git_author'"),
+            sqlite_where=text("kind = 'git_author'"),
         ),
         Index(
             "ix_identities_github_login_key",
             "login_norm",
             unique=True,
-            postgresql_where="kind = 'github_login'",
-            sqlite_where="kind = 'github_login'",
+            postgresql_where=text("kind = 'github_login'"),
+            sqlite_where=text("kind = 'github_login'"),
         ),
     )
 

@@ -1,0 +1,3 @@
+[     198ms] TypeError: Failed to execute 'fetch' on 'Window': Request cannot be constructed from a URL that includes credentials: /api/trend?range=30d
+    at http://root:admin@localhost:8080/:116:1
+[     273ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:8080/favicon.ico:0

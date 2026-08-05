@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "python",
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "include-component-in-tag": false,
+  "packages": {
+    ".": {
+      "package-name": "gca",
+      "extra-files": [
+        {
+          "path": "src/gca/__init__.py",
+          "type": "generic"
+        },
+        {
+          "path": "uv.lock",
+          "type": "toml",
+          "jsonpath": "$.package[?(@.name.value=='gca')].version"
+        }
+      ]
+    }
+  }
+}

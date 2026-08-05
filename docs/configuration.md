@@ -1,0 +1,137 @@
+# Configuration
+
+## Philosophy
+
+`.env` carries deployment internals only (database, secret key, edge proxy). The
+`MAIL_*`, `SMTP_*` and `AI_*` environment values are seeds: on first boot they are
+imported into the settings table, and only for keys that do not exist yet. From then
+on the in-app settings screen is the single authority; changing the environment
+later has no effect on already-seeded keys. All secrets stored in the database
+(org tokens, mail secrets, AI keys) are encrypted with the deployment Fernet key
+(`APP_SECRET_KEY`).
+
+## Organizations
+
+- Add an organization from the setup gate, the orgs page, or the CLI
+  (`gca org add <login> --token-file <path>`). Adding validates the token
+  immediately and queues a first sync.
+- Removing an organization cascades: repos, commits, pull requests, reviews,
+  rollups and every other derived row are deleted. The clone cache is cleaned up by
+  the worker's weekly maintenance job.
+- Each org can pause and resume its scheduled sync, replace its token, and
+  revalidate it. A failing validation marks the org degraded; other orgs are
+  unaffected.
+
+### Token requirements
+
+Each org needs its own fine-grained personal access token:
+
+| Requirement | Value |
+|---|---|
+| Token type | Fine-grained PAT |
+| Resource owner | The organization itself (user-owned tokens are rejected) |
+| Repository access | The repositories you want analyzed |
+| Contents | Read-only |
+| Metadata | Read-only |
+| Pull requests | Read-only |
+
+Each token has its own adaptive rate budget; commit data is read from clones and
+never consumes API quota.
+
+## Repository filters
+
+Per org, `repo_filter_mode` is one of `all`, `whitelist` or `blacklist`. Repository
+names are entered one per line on the orgs page. With no names listed and mode
+`all`, every repository is included. Changing filters immediately recomputes each
+repo's inclusion flag.
+
+## Person filters
+
+The same mechanism exists per org for persons (`all`, `whitelist`, `blacklist`),
+managed from the people screen, to exclude bots or scope reports to a team.
+
+## Identity merging
+
+Every unknown identity (git author name plus email, or GitHub login) automatically
+creates a person. Identities are immutable rows; merging moves identity foreign
+keys to the surviving person, so unmerge is always possible. Merges and unmerges
+recompute the affected persons' rollups from the base tables.
+
+Merge suggestions are generated after every sync and nightly. Signals, strongest
+first:
+
+- identical email on both persons (GitHub noreply addresses excluded)
+- GitHub noreply email whose embedded login matches the other person's login
+- identical email local part (at least 4 characters, generic mailbox names such as
+  `admin` or `info` ignored)
+- normalized full-name similarity (only counted at 0.8 similarity or higher)
+- login equal to a name with spaces removed
+
+Signals combine probabilistically into a score; pairs scoring at least 0.55 become
+pending suggestions that you accept or dismiss in the people screen.
+
+## Mail
+
+Two backends behind one interface. The backend auto-selects from configured
+settings (Graph wins when the Azure values are present) and can be overridden
+in-app.
+
+### Microsoft Graph (production)
+
+1. Create an Entra ID app registration.
+2. Grant it the application permission `Mail.Send` and give admin consent.
+3. Configure client id, client secret, tenant id and the sender mailbox (the
+   mailbox the app sends as, e.g. `noreply@example.com`).
+
+The backend uses the client credentials flow and `POST /users/{sender}/sendMail`;
+attachments over 3 MB switch to an upload session automatically.
+
+### SMTP
+
+Host, port, optional username and password, STARTTLS toggle and sender address. In
+development the compose overlay points SMTP at Mailpit, so every mail is captured
+at http://localhost:8025 instead of being delivered.
+
+### Test send and degradation
+
+The settings screen has a test-send button to verify the active backend. When mail
+is unconfigured or a send fails, the app degrades gracefully: a dashboard banner
+appears and reports are stored unsent. Once mail is fixed, stored reports can be
+re-dispatched.
+
+## AI insights
+
+Configure an OpenAI-compatible endpoint: base URL, optional bearer key, and model
+name. The insight service assembles a compact statistical context for the current
+view, scope and period, requests a short English narrative, and caches the result
+in the database keyed by view, org scope and period, so repeated visits do not
+re-query the model. When AI is unconfigured or erroring, insight panels are hidden
+and reports render without narrative sections.
+
+## Report schedules
+
+Period kinds: `week`, `month`, `trimester`, `quarter`, `half_year`, `year`.
+
+| Kind | Definition |
+|---|---|
+| week | ISO 8601 week, Monday start |
+| month | Calendar month |
+| trimester | 4-month blocks: Jan-Apr, May-Aug, Sep-Dec |
+| quarter | Calendar quarter (3 months) |
+| half_year | Jan-Jun and Jul-Dec |
+| year | Calendar year |
+
+Periodic reports are generated only when a period closes: a daily watcher looks at
+the most recent fully closed period per enabled schedule and a job ledger
+guarantees each period fires exactly once. Generation is never retroactive; older
+closed periods are not backfilled. Generated reports are emailed to the active
+recipients list, managed on the settings screen.
+
+## Sync scheduling
+
+- Automatic: every organization with sync enabled is synced every 6 hours (with
+  jitter; the first run starts shortly after the worker boots).
+- Manual: the "Sync now" button queues a request that the worker picks up within
+  30 seconds. Orgs already running are skipped.
+- Maintenance: weekly (Sunday 04:00 UTC), the worker repacks every clone with the
+  blobless filter to keep them slim and removes orphaned clone directories.

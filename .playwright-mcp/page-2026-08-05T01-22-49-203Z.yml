@@ -1,0 +1,143 @@
+- generic [active] [ref=f2e1]:
+  - banner [ref=f2e2]:
+    - generic [ref=f2e3]: gh::contribution-analyzer
+    - navigation [ref=f2e4]:
+      - link "Dashboard" [ref=f2e5] [cursor=pointer]:
+        - /url: /
+      - link "Repos" [ref=f2e6] [cursor=pointer]:
+        - /url: /repos
+      - link "People" [ref=f2e7] [cursor=pointer]:
+        - /url: /people
+      - link "Identity" [ref=f2e8] [cursor=pointer]:
+        - /url: /manage
+      - link "Orgs" [ref=f2e9] [cursor=pointer]:
+        - /url: /orgs
+      - link "Reports" [ref=f2e10] [cursor=pointer]:
+        - /url: /reports
+      - link "Settings" [ref=f2e11] [cursor=pointer]:
+        - /url: /settings
+    - group [ref=f2e12]:
+      - generic "All orgs" [ref=f2e13] [cursor=pointer]
+  - main [ref=f2e14]:
+    - heading "CalidadDLT" [level=1] [ref=f2e15]
+    - paragraph [ref=f2e16]:
+      - text: "Identities:"
+      - generic [ref=f2e17]: calidadcodigo@dltcode.es
+      - link "manage" [ref=f2e18] [cursor=pointer]:
+        - /url: /manage
+    - generic [ref=f2e19]:
+      - link "Last 7 days" [ref=f2e20] [cursor=pointer]:
+        - /url: "?range=7d"
+      - link "Last 30 days" [ref=f2e21] [cursor=pointer]:
+        - /url: "?range=30d"
+      - link "Last 90 days" [ref=f2e22] [cursor=pointer]:
+        - /url: "?range=90d"
+      - link "Last 365 days" [ref=f2e23] [cursor=pointer]:
+        - /url: "?range=365d"
+      - link "All time" [ref=f2e24] [cursor=pointer]:
+        - /url: "?range=all"
+      - generic [ref=f2e25]:
+        - textbox "From" [ref=f2e26]
+        - textbox "To" [ref=f2e27]
+        - button "Go" [ref=f2e28] [cursor=pointer]
+      - generic [ref=f2e29]: All time
+    - generic [ref=f2e30]:
+      - generic [ref=f2e31]:
+        - generic [ref=f2e32]: "82"
+        - generic [ref=f2e33]: Commits
+      - generic [ref=f2e34]:
+        - generic [ref=f2e35]: 32,828
+        - generic [ref=f2e36]: Lines added
+      - generic [ref=f2e37]:
+        - generic [ref=f2e38]: 12,579
+        - generic [ref=f2e39]: Lines deleted
+      - generic [ref=f2e40]:
+        - generic [ref=f2e41]: 27%
+        - generic [ref=f2e42]: Churn ratio
+      - generic [ref=f2e43]:
+        - generic [ref=f2e44]: 7,462 / 1,396
+        - generic [ref=f2e45]: Self / cross churn
+      - generic [ref=f2e46]:
+        - generic [ref=f2e47]: "305.2"
+        - generic [ref=f2e48]: Significance
+      - generic [ref=f2e49]:
+        - generic [ref=f2e50]: 0 / 0
+        - generic [ref=f2e51]: PRs opened / merged
+      - generic [ref=f2e52]:
+        - generic [ref=f2e53]: "0"
+        - generic [ref=f2e54]: Reviews given
+    - generic [ref=f2e55]:
+      - heading "Percentile position (population of 46)" [level=2] [ref=f2e56]
+      - table [ref=f2e57]:
+        - rowgroup [ref=f2e58]:
+          - row [ref=f2e59]:
+            - columnheader "Metric" [ref=f2e60]
+            - columnheader "Value" [ref=f2e61]
+            - columnheader "Percentile" [ref=f2e62]
+          - row [ref=f2e63]:
+            - cell "Commits" [ref=f2e64]
+            - cell "82" [ref=f2e65]
+            - cell [ref=f2e66]
+          - row [ref=f2e69]:
+            - cell "Lines added" [ref=f2e70]
+            - cell "32828" [ref=f2e71]
+            - cell [ref=f2e72]
+          - row [ref=f2e75]:
+            - cell "Churn lines" [ref=f2e76]
+            - cell "8858" [ref=f2e77]
+            - cell [ref=f2e78]
+          - row [ref=f2e81]:
+            - cell "Significance" [ref=f2e82]
+            - cell "305.2" [ref=f2e83]
+            - cell [ref=f2e84]
+          - row [ref=f2e87]:
+            - cell "PRs merged" [ref=f2e88]
+            - cell "0" [ref=f2e89]
+            - cell [ref=f2e90]
+          - row [ref=f2e92]:
+            - cell "Reviews" [ref=f2e93]
+            - cell "0" [ref=f2e94]
+            - cell [ref=f2e95]
+    - heading "Activity trend" [level=2] [ref=f2e98]
+    - generic [ref=f2e101]:
+      - heading "Per-repository split" [level=2] [ref=f2e102]
+      - table [ref=f2e103]:
+        - rowgroup [ref=f2e104]:
+          - row [ref=f2e105]:
+            - columnheader "Repo" [ref=f2e106]
+            - columnheader "Commits" [ref=f2e107]
+            - columnheader "Added" [ref=f2e108]
+            - columnheader "Churn" [ref=f2e109]
+            - columnheader "Significance" [ref=f2e110]
+            - columnheader "PRs merged" [ref=f2e111]
+            - columnheader "Reviews" [ref=f2e112]
+          - row [ref=f2e113]:
+            - cell [ref=f2e114]:
+              - link "DLT-Code/ITB-Back_old" [ref=f2e115] [cursor=pointer]:
+                - /url: /repos/100
+            - cell "36" [ref=f2e116]
+            - cell "12,816" [ref=f2e117]
+            - cell "419" [ref=f2e118]
+            - cell "121.5" [ref=f2e119]
+            - cell "0" [ref=f2e120]
+            - cell "0" [ref=f2e121]
+          - row [ref=f2e122]:
+            - cell [ref=f2e123]:
+              - link "DLT-Code/dstar-dev-front" [ref=f2e124] [cursor=pointer]:
+                - /url: /repos/86
+            - cell "27" [ref=f2e125]
+            - cell "10,211" [ref=f2e126]
+            - cell "7,667" [ref=f2e127]
+            - cell "103.1" [ref=f2e128]
+            - cell "0" [ref=f2e129]
+            - cell "0" [ref=f2e130]
+          - row [ref=f2e131]:
+            - cell [ref=f2e132]:
+              - link "DLT-Code/itb-front" [ref=f2e133] [cursor=pointer]:
+                - /url: /repos/101
+            - cell "19" [ref=f2e134]
+            - cell "9,801" [ref=f2e135]
+            - cell "772" [ref=f2e136]
+            - cell "80.6" [ref=f2e137]
+            - cell "0" [ref=f2e138]
+            - cell "0" [ref=f2e139]

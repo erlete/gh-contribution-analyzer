@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}People, Contribution Analyzer{% endblock %}
+{% block content %}
+{% include "_rangebar.html" %}
+
+<div class="panel">
+  <h2>Contributors ({{ board | length }})</h2>
+  <table>
+    <tr>
+      <th>Person</th><th class="num">Commits</th><th class="num">Added</th>
+      <th class="num">Deleted</th><th class="num">Churn ratio</th>
+      <th class="num">Significance</th><th class="num">PRs merged</th>
+      <th class="num">Reviews</th><th class="num">Pctl</th>
+    </tr>
+    {% for p in board %}
+    <tr>
+      <td><a href="/people/{{ p.person_id }}">{{ p.display_name }}</a></td>
+      <td class="num">{{ p.commits | int_fmt }}</td>
+      <td class="num">{{ p.additions | int_fmt }}</td>
+      <td class="num">{{ p.deletions | int_fmt }}</td>
+      <td class="num">{{ p.churn_ratio | pct }}%</td>
+      <td class="num">{{ p.significance | float_fmt }}</td>
+      <td class="num">{{ p.prs_merged | int_fmt }}</td>
+      <td class="num">{{ p.reviews | int_fmt }}</td>
+      <td class="num"><span class="pill accent">P{{ p.percentiles.get('significance') | pct }}</span></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" class="muted">No contributor activity in this period.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

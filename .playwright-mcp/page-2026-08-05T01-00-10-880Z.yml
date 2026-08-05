@@ -1,0 +1,91 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]: gh::contribution-analyzer
+    - navigation [ref=e4]:
+      - link "Dashboard" [ref=e5] [cursor=pointer]:
+        - /url: /
+      - link "Repos" [ref=e6] [cursor=pointer]:
+        - /url: /repos
+      - link "People" [ref=e7] [cursor=pointer]:
+        - /url: /people
+      - link "Identity" [ref=e8] [cursor=pointer]:
+        - /url: /manage
+      - link "Orgs" [ref=e9] [cursor=pointer]:
+        - /url: /orgs
+      - link "Reports" [ref=e10] [cursor=pointer]:
+        - /url: /reports
+      - link "Settings" [ref=e11] [cursor=pointer]:
+        - /url: /settings
+    - group [ref=e12]:
+      - generic "All orgs" [ref=e13] [cursor=pointer]
+  - main [ref=e14]:
+    - generic [ref=e15]:
+      - link "Last 7 days" [ref=e16] [cursor=pointer]:
+        - /url: "?range=7d"
+      - link "Last 30 days" [ref=e17] [cursor=pointer]:
+        - /url: "?range=30d"
+      - link "Last 90 days" [ref=e18] [cursor=pointer]:
+        - /url: "?range=90d"
+      - link "Last 365 days" [ref=e19] [cursor=pointer]:
+        - /url: "?range=365d"
+      - link "All time" [ref=e20] [cursor=pointer]:
+        - /url: "?range=all"
+      - generic [ref=e21]:
+        - textbox "From" [ref=e22]
+        - textbox "To" [ref=e23]
+        - button "Go" [ref=e24] [cursor=pointer]
+      - generic [ref=e25]: Last 30 days
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - generic [ref=e28]: "0"
+        - generic [ref=e29]: Commits
+      - generic [ref=e30]:
+        - generic [ref=e31]: "0"
+        - generic [ref=e32]: Lines added
+      - generic [ref=e33]:
+        - generic [ref=e34]: "0"
+        - generic [ref=e35]: Lines deleted
+      - generic [ref=e36]:
+        - generic [ref=e37]: 0%
+        - generic [ref=e38]: Churn ratio
+      - generic [ref=e39]:
+        - generic [ref=e40]: "0.0"
+        - generic [ref=e41]: Significance
+      - generic [ref=e42]:
+        - generic [ref=e43]: "0"
+        - generic [ref=e44]: PRs merged
+      - generic [ref=e45]:
+        - generic [ref=e46]: "0"
+        - generic [ref=e47]: Reviews
+      - generic [ref=e48]:
+        - generic [ref=e49]: "0"
+        - generic [ref=e50]: Active people
+      - generic [ref=e51]:
+        - generic [ref=e52]: "0"
+        - generic [ref=e53]: Active repos
+    - heading "Activity trend" [level=2] [ref=e55]
+    - generic [ref=e58]:
+      - generic [ref=e59]:
+        - heading "Top people" [level=2] [ref=e60]
+        - table [ref=e61]:
+          - rowgroup [ref=e62]:
+            - row [ref=e63]:
+              - columnheader "Person" [ref=e64]
+              - columnheader "Commits" [ref=e65]
+              - columnheader "Significance" [ref=e66]
+              - columnheader "Churn" [ref=e67]
+              - columnheader "Pctl" [ref=e68]
+            - row [ref=e69]:
+              - cell "No activity in this period." [ref=e70]
+      - generic [ref=e71]:
+        - heading "Top repositories" [level=2] [ref=e72]
+        - table [ref=e73]:
+          - rowgroup [ref=e74]:
+            - row [ref=e75]:
+              - columnheader "Repo" [ref=e76]
+              - columnheader "Commits" [ref=e77]
+              - columnheader "Significance" [ref=e78]
+              - columnheader "PRs" [ref=e79]
+              - columnheader "People" [ref=e80]
+            - row [ref=e81]:
+              - cell "No activity in this period." [ref=e82]

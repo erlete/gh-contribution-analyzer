@@ -1,0 +1,154 @@
+# Deployment
+
+Production runs entirely from the published container image. You do not clone the
+repository; you download three files, fill in one of them, and start the stack.
+
+## Prerequisites
+
+- Docker with Compose v2 (`docker compose`, not the legacy `docker-compose`)
+- For automatic HTTPS: a DNS record for your chosen domain pointing at the host, with
+  ports 80 and 443 reachable from the internet. Caddy provisions and renews TLS
+  certificates automatically for the domain set in `CADDY_DOMAIN`. With the default
+  `CADDY_DOMAIN=localhost` Caddy serves plain local traffic instead.
+
+## Files needed
+
+| File | Where to put it | Purpose |
+|---|---|---|
+| `compose.yml` | working directory | Service definitions. References `ghcr.io/erlete/gh-contribution-analyzer`, no build context. |
+| `deploy/Caddyfile` | `deploy/` next to `compose.yml` | Caddy site config: basic auth plus reverse proxy to the app. Mounted read-only. |
+| `.env` | working directory | Your deployment configuration, copied from `.env.example`. |
+
+Then:
+
+```sh
+docker compose up -d
+```
+
+## Environment variables
+
+All variables live in `.env`, grouped as in `.env.example`. Operational settings
+(org tokens, recipients, schedules) are managed in-app; the `MAIL_*`, `SMTP_*` and
+`AI_*` values only seed initial defaults on first boot and can be changed from the
+settings screen afterwards.
+
+### Database
+
+| Variable | Description |
+|---|---|
+| `POSTGRES_USER` | Postgres role name. Default `gca`. |
+| `POSTGRES_PASSWORD` | Postgres password. Change it. |
+| `POSTGRES_DB` | Database name. Default `gca`. |
+| `DATABASE_URL` | Full SQLAlchemy URL used by app and worker, e.g. `postgresql+psycopg://gca:change-me@postgres:5432/gca`. The host must match the compose service name (`postgres`). Must agree with the three variables above. |
+
+### Application
+
+| Variable | Description |
+|---|---|
+| `APP_SECRET_KEY` | Fernet key used to encrypt credentials at rest (org tokens, mail secrets, AI keys). Required. |
+| `APP_BASE_URL` | Public base URL of the deployment, e.g. `https://gca.example.com`. |
+| `TZ` | Container timezone. Default `UTC`. |
+
+Generate `APP_SECRET_KEY` exactly as documented in `.env.example`:
+
+```sh
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+### Caddy (the only exposed service)
+
+| Variable | Description |
+|---|---|
+| `CADDY_DOMAIN` | Domain Caddy serves. Keep `localhost` for local production-mode runs; set a real domain for automatic HTTPS. |
+| `BASIC_AUTH_USER` | Basic auth username. Default `root`. |
+| `BASIC_AUTH_HASH` | bcrypt hash of the basic auth password. Required in production. |
+
+Generate `BASIC_AUTH_HASH` exactly as documented in `.env.example`:
+
+```sh
+docker run --rm caddy:2 caddy hash-password --plaintext 'your-password'
+```
+
+### Mail seed: Microsoft Graph (production)
+
+Requires an Entra ID app registration with the application permission `Mail.Send`
+and admin consent. Seeds the Graph backend on first boot only.
+
+| Variable | Description |
+|---|---|
+| `MAIL_AZURE_CLIENT_ID` | App registration client id. |
+| `MAIL_AZURE_CLIENT_SECRET` | App registration client secret. |
+| `MAIL_AZURE_TENANT_ID` | Entra tenant id. |
+| `MAIL_SENDER_ADDRESS` | Mailbox to send as, e.g. `noreply@example.com`. |
+
+### Mail seed: SMTP
+
+Alternative backend; the dev compose overlay points these at Mailpit. When both
+Graph and SMTP seeds are present, Graph wins.
+
+| Variable | Description |
+|---|---|
+| `SMTP_HOST` | SMTP server host. |
+| `SMTP_PORT` | SMTP port. Default `587`. |
+| `SMTP_USERNAME` | Optional username. |
+| `SMTP_PASSWORD` | Optional password. |
+| `SMTP_STARTTLS` | Use STARTTLS. Default `true`. |
+| `SMTP_SENDER_ADDRESS` | From address. |
+
+### AI seed: OpenAI-compatible endpoint
+
+| Variable | Description |
+|---|---|
+| `AI_SERVICE_URL` | Base URL of an OpenAI-compatible API. |
+| `AI_SERVICE_KEY` | Bearer key. |
+| `AI_SERVICE_MODEL` | Model name to request. |
+
+### Image tag
+
+| Variable | Description |
+|---|---|
+| `GCA_TAG` | Image tag for app and worker. Defaults to `latest`. Set to a specific version to pin. |
+
+## Volumes
+
+| Volume | Mounted into | Contents | Disposable? |
+|---|---|---|---|
+| `pgdata` | postgres | The database. Source of truth for everything. | No. Back it up. |
+| `clones` | worker only | Bare blobless mirror clones of synced repositories. Pure cache: if lost, the worker re-clones and re-ingests idempotently. | Yes. |
+| `reports` | worker (writes), app (serves) | Generated PDF reports. | Optional to keep; regenerable on demand from the database. |
+| `caddy-data`, `caddy-config` | caddy | TLS certificates and Caddy state. | Recreated automatically, but keeping `caddy-data` avoids re-issuing certificates. |
+
+## Backups
+
+- Dump Postgres regularly; it is the only source of truth:
+
+  ```sh
+  docker compose exec postgres pg_dump -U gca gca > backup.sql
+  ```
+
+- Optionally back up the `reports` volume if you want to keep historical PDFs
+  without regenerating them.
+- Never back up `clones`; it is a disposable cache that rebuilds itself.
+
+## Upgrades
+
+1. Pick the new version: either leave `GCA_TAG` unset (tracks `latest`) or set it to
+   the new tag in `.env`.
+2. Pull and restart:
+
+   ```sh
+   docker compose pull
+   docker compose up -d
+   ```
+
+The container entrypoint runs schema migrations before starting each service,
+serialized through a Postgres advisory lock, so app and worker can start in any
+order.
+
+## Authentication model
+
+Caddy basic auth is the single authentication layer. The app itself has no login;
+it trusts the network boundary. In production only Caddy publishes ports, so every
+request to the dashboard passes through basic auth with the `BASIC_AUTH_USER` and
+`BASIC_AUTH_HASH` credentials. Do not publish the app, worker or postgres ports in
+production.

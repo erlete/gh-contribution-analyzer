@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}{{ org.login }}/{{ repo.name }}, Contribution Analyzer{% endblock %}
+{% block content %}
+<h1>{{ org.login }}/{{ repo.name }}
+  {% if repo.is_private %}<span class="pill">private</span>{% endif %}
+  {% if repo.is_archived %}<span class="pill">archived</span>{% endif %}
+  {% if repo.is_fork %}<span class="pill">fork</span>{% endif %}
+</h1>
+<p class="muted small">
+  Default branch {{ repo.default_branch }}, clone {{ repo.clone_status.value }},
+  last fetched {{ repo.last_fetched_at or 'never' }}
+  {% if repo.clone_error %}<span class="pill bad">{{ repo.clone_error }}</span>{% endif %}
+</p>
+
+{% include "_rangebar.html" %}
+
+<div hx-get="/partials/insight?view=repo&repo_id={{ repo.id }}&range={{ period.key }}" hx-trigger="load" hx-swap="outerHTML"></div>
+
+<div class="cards">
+  <div class="card"><div class="value">{{ totals.commits | int_fmt }}</div><div class="label">Commits</div></div>
+  <div class="card"><div class="value">{{ totals.additions | int_fmt }}</div><div class="label">Lines added</div></div>
+  <div class="card"><div class="value">{{ totals.deletions | int_fmt }}</div><div class="label">Lines deleted</div></div>
+  <div class="card"><div class="value">{{ totals.churn_ratio | pct }}%</div><div class="label">Churn ratio</div></div>
+  <div class="card"><div class="value">{{ totals.significance | float_fmt }}</div><div class="label">Significance</div></div>
+  <div class="card"><div class="value">{{ totals.prs_merged | int_fmt }}</div><div class="label">PRs merged</div></div>
+  <div class="card"><div class="value">{{ totals.reviews | int_fmt }}</div><div class="label">Reviews</div></div>
+</div>
+
+<div class="panel">
+  <h2>Activity trend</h2>
+  <div class="chart-wrap"><canvas id="trend"></canvas></div>
+</div>
+
+<div class="panel">
+  <h2>Contributors</h2>
+  <table>
+    <tr>
+      <th>Person</th><th class="num">Commits</th><th class="num">Added</th>
+      <th class="num">Churn</th><th class="num">Significance</th>
+      <th class="num">PRs</th><th class="num">Reviews</th><th class="num">Pctl</th>
+    </tr>
+    {% for p in contributors %}
+    <tr>
+      <td><a href="/people/{{ p.person_id }}">{{ p.display_name }}</a></td>
+      <td class="num">{{ p.commits | int_fmt }}</td>
+      <td class="num">{{ p.additions | int_fmt }}</td>
+      <td class="num">{{ p.churn_ratio | pct }}%</td>
+      <td class="num">{{ p.significance | float_fmt }}</td>
+      <td class="num">{{ p.prs_merged | int_fmt }}</td>
+      <td class="num">{{ p.reviews | int_fmt }}</td>
+      <td class="num"><span class="pill accent">P{{ p.percentiles.get('significance') | pct }}</span></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="muted">No contributions in this period.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<script>
+fetch('/api/trend?range={{ period.key }}&repo_id={{ repo.id }}').then(r => r.json()).then(data => {
+  new Chart(document.getElementById('trend'), {
+    type: 'bar',
+    data: {
+      labels: data.labels,
+      datasets: [
+        {label: 'Additions', data: data.additions, backgroundColor: 'rgba(63,185,111,0.6)'},
+        {label: 'Deletions', data: data.deletions.map(v => -v), backgroundColor: 'rgba(229,83,75,0.6)'}
+      ]
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {legend: {labels: {color: '#8b98a5'}}},
+      scales: {
+        x: {stacked: true, ticks: {color: '#8b98a5', maxTicksLimit: 12}, grid: {color: '#2a333d'}},
+        y: {stacked: true, ticks: {color: '#8b98a5'}, grid: {color: '#2a333d'}}
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

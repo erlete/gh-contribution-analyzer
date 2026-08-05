@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Reports, Contribution Analyzer{% endblock %}
+{% block content %}
+<h1>Reports</h1>
+
+<div class="grid2">
+  <div class="panel">
+    <h2>Generate on demand</h2>
+    <p class="muted small">Uses the current org scope ({{ scope.label }}). Leave dates empty for full history, leave selections empty for all subjects.</p>
+    <form method="post" action="/reports/generate" class="stack" style="max-width:none">
+      <label class="field">Report kind
+        <select name="kind">
+          <option value="overview">General overview</option>
+          <option value="person">Individualized per person</option>
+          <option value="repo">Individualized per repository</option>
+        </select>
+      </label>
+      <div class="actions">
+        <label class="field">From <input type="date" name="date_from"></label>
+        <label class="field">To <input type="date" name="date_to"></label>
+      </div>
+      <label class="field">Limit to repositories
+        <select name="repo_ids" multiple size="5">
+          {% for repo, login in repos %}
+          <option value="{{ repo.id }}">{{ login }}/{{ repo.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">Limit to people
+        <select name="person_ids" multiple size="5">
+          {% for p in persons %}
+          <option value="{{ p.id }}">{{ p.display_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit">Generate</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>Periodic schedules</h2>
+    <p class="muted small">
+      Enabled combinations generate at period close and email every active
+      recipient. Nothing is generated retroactively.
+    </p>
+    <form method="post" action="/reports/schedules">
+      <table>
+        <tr>
+          <th>Period</th>
+          {% for rk in report_kinds %}<th>{{ rk }}</th>{% endfor %}
+        </tr>
+        {% for pk in period_kinds %}
+        <tr>
+          <td>{{ pk.replace('_', ' ') }}</td>
+          {% for rk in report_kinds %}
+          {% set s = schedules.get((pk, rk)) %}
+          <td>
+            <input type="checkbox" name="sched-{{ pk }}-{{ rk }}"
+                   {{ 'checked' if s and s.enabled }}>
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+      <div class="actions" style="margin-top:0.6rem">
+        <button type="submit">Save schedules</button>
+        <a href="/settings" class="muted small">Manage recipients in settings</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Archive</h2>
+  <table>
+    <tr><th>Title</th><th>Kind</th><th>Period</th><th>Status</th><th>Generated</th><th></th></tr>
+    {% for r in archive %}
+    <tr>
+      <td>{{ r.title }}</td>
+      <td><span class="pill">{{ r.kind }}</span> <span class="pill">{{ r.period_kind }}</span></td>
+      <td class="small muted">{{ r.period_start.date() }} to {{ r.period_end.date() }}</td>
+      <td>
+        <span class="pill {{ 'good' if r.status == 'emailed' else 'warn' if r.status == 'unsent' else '' }}">{{ r.status }}</span>
+      </td>
+      <td class="small muted">{{ r.generated_at }}</td>
+      <td class="actions">
+        <a class="btn secondary" href="/reports/{{ r.id }}/download">PDF</a>
+        <form method="post" action="/reports/{{ r.id }}/email">
+          <button type="submit" class="secondary">Email</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="muted">No reports yet.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

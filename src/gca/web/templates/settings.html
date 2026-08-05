@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Settings, Contribution Analyzer{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+
+<div class="grid2">
+  <div class="panel">
+    <h2>Email delivery</h2>
+    <p class="muted small">
+      Active provider: <span class="pill accent">{{ mail_raw.get('provider', 'none') }}</span>
+      {% if mail_status.get('last_success') %}| last success {{ mail_status.get('last_success') }}{% endif %}
+      {% if mail_status.get('last_error') %}| <span class="pill bad">last error: {{ mail_status.get('last_error') }}</span>{% endif %}
+    </p>
+
+    <h2>Microsoft Graph</h2>
+    <form method="post" action="/settings/mail/graph" class="stack">
+      {% set g = mail_raw.get('graph', {}) %}
+      <label class="field">Client ID
+        <input type="text" name="client_id" value="{{ g.get('client_id', '') }}" required>
+      </label>
+      <label class="field">Client secret (leave empty to keep current)
+        <input type="password" name="client_secret" placeholder="{{ 'saved' if g.get('client_secret_enc') else 'required' }}">
+      </label>
+      <label class="field">Tenant ID
+        <input type="text" name="tenant_id" value="{{ g.get('tenant_id', '') }}" required>
+      </label>
+      <label class="field">Sender mailbox
+        <input type="email" name="sender" value="{{ g.get('sender', '') }}" required placeholder="noreply@example.com">
+      </label>
+      <button type="submit">Save and use Graph</button>
+    </form>
+
+    <h2>SMTP</h2>
+    <form method="post" action="/settings/mail/smtp" class="stack">
+      {% set s = mail_raw.get('smtp', {}) %}
+      <label class="field">Host
+        <input type="text" name="host" value="{{ s.get('host', '') }}" required>
+      </label>
+      <div class="actions">
+        <label class="field">Port <input type="number" name="port" value="{{ s.get('port', 587) }}"></label>
+        <label class="field" style="align-self:end">
+          <span><input type="checkbox" name="starttls" {{ 'checked' if s.get('starttls', True) }}> STARTTLS</span>
+        </label>
+      </div>
+      <label class="field">Username <input type="text" name="username" value="{{ s.get('username', '') }}"></label>
+      <label class="field">Password (leave empty to keep current)
+        <input type="password" name="password" placeholder="{{ 'saved' if s.get('password_enc') else 'optional' }}">
+      </label>
+      <label class="field">Sender address
+        <input type="email" name="sender" value="{{ s.get('sender', '') }}">
+      </label>
+      <button type="submit">Save and use SMTP</button>
+    </form>
+
+    <h2>Test delivery</h2>
+    <form method="post" action="/settings/mail/test" class="actions">
+      <input type="email" name="to" placeholder="you@example.com" required style="max-width:260px">
+      <button type="submit" class="secondary">Send test email</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>AI insights</h2>
+    <p class="muted small">
+      OpenAI-compatible endpoint. Leaving URL or model empty disables AI and
+      hides every insight panel and report narrative.
+    </p>
+    <form method="post" action="/settings/ai" class="stack">
+      <label class="field">Service URL
+        <input type="text" name="url" value="{{ ai_raw.get('url', '') }}" placeholder="https://ai.example.com/v1">
+      </label>
+      <label class="field">API key (leave empty to keep current)
+        <input type="password" name="key" placeholder="{{ 'saved' if ai_raw.get('key_enc') else 'optional' }}">
+      </label>
+      <label class="field">Model
+        <input type="text" name="model" value="{{ ai_raw.get('model', '') }}" placeholder="qwen-max">
+      </label>
+      <div class="actions">
+        <button type="submit">Save</button>
+      </div>
+    </form>
+    <form method="post" action="/settings/ai/test" style="margin-top:0.6rem">
+      <button type="submit" class="secondary">Test AI endpoint</button>
+    </form>
+
+    <h2 style="margin-top:1.4rem">Report recipients</h2>
+    <table>
+      <tr><th>Email</th><th>Note</th><th>Status</th><th></th></tr>
+      {% for r in recipients %}
+      <tr>
+        <td>{{ r.email }}</td>
+        <td class="small muted">{{ r.note or '' }}</td>
+        <td><span class="pill {{ 'good' if r.active else '' }}">{{ 'active' if r.active else 'paused' }}</span></td>
+        <td class="actions">
+          <form method="post" action="/settings/recipients/{{ r.id }}/toggle">
+            <button type="submit" class="secondary">{{ 'Pause' if r.active else 'Activate' }}</button>
+          </form>
+          <form method="post" action="/settings/recipients/{{ r.id }}/delete">
+            <button type="submit" class="danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="muted">No recipients yet.</td></tr>
+      {% endfor %}
+    </table>
+    <form method="post" action="/settings/recipients/add" class="actions" style="margin-top:0.6rem">
+      <input type="email" name="email" placeholder="person@example.com" required style="max-width:240px">
+      <input type="text" name="note" placeholder="note" style="max-width:160px">
+      <button type="submit" class="secondary">Add recipient</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

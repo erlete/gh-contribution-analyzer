@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Dashboard, Contribution Analyzer{% endblock %}
+{% block content %}
+{% include "_rangebar.html" %}
+
+<div hx-get="/partials/insight?view=dashboard&range={{ period.key }}" hx-trigger="load" hx-swap="outerHTML"></div>
+
+<div class="cards">
+  <div class="card"><div class="value">{{ totals.commits | int_fmt }}</div><div class="label">Commits</div></div>
+  <div class="card"><div class="value">{{ totals.additions | int_fmt }}</div><div class="label">Lines added</div></div>
+  <div class="card"><div class="value">{{ totals.deletions | int_fmt }}</div><div class="label">Lines deleted</div></div>
+  <div class="card"><div class="value">{{ totals.churn_ratio | pct }}%</div><div class="label">Churn ratio</div></div>
+  <div class="card"><div class="value">{{ totals.significance | float_fmt }}</div><div class="label">Significance</div></div>
+  <div class="card"><div class="value">{{ totals.prs_merged | int_fmt }}</div><div class="label">PRs merged</div></div>
+  <div class="card"><div class="value">{{ totals.reviews | int_fmt }}</div><div class="label">Reviews</div></div>
+  <div class="card"><div class="value">{{ totals.active_people | int_fmt }}</div><div class="label">Active people</div></div>
+  <div class="card"><div class="value">{{ totals.active_repos | int_fmt }}</div><div class="label">Active repos</div></div>
+</div>
+
+<div class="panel">
+  <h2>Activity trend</h2>
+  <div class="chart-wrap"><canvas id="trend"></canvas></div>
+</div>
+
+<div class="grid2">
+  <div class="panel">
+    <h2>Top people</h2>
+    <table>
+      <tr><th>Person</th><th class="num">Commits</th><th class="num">Significance</th><th class="num">Churn</th><th class="num">Pctl</th></tr>
+      {% for p in top_people %}
+      <tr>
+        <td><a href="/people/{{ p.person_id }}">{{ p.display_name }}</a></td>
+        <td class="num">{{ p.commits | int_fmt }}</td>
+        <td class="num">{{ p.significance | float_fmt }}</td>
+        <td class="num">{{ p.churn_ratio | pct }}%</td>
+        <td class="num"><span class="pill accent">P{{ p.percentiles.get('significance') | pct }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">No activity in this period.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="panel">
+    <h2>Top repositories</h2>
+    <table>
+      <tr><th>Repo</th><th class="num">Commits</th><th class="num">Significance</th><th class="num">PRs</th><th class="num">People</th></tr>
+      {% for r in top_repos %}
+      <tr>
+        <td><a href="/repos/{{ r.repo_id }}">{{ r.org_login }}/{{ r.name }}</a></td>
+        <td class="num">{{ r.commits | int_fmt }}</td>
+        <td class="num">{{ r.significance | float_fmt }}</td>
+        <td class="num">{{ r.prs_merged | int_fmt }}</td>
+        <td class="num">{{ r.contributors | int_fmt }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">No activity in this period.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<script>
+fetch('/api/trend?range={{ period.key }}').then(r => r.json()).then(data => {
+  new Chart(document.getElementById('trend'), {
+    type: 'line',
+    data: {
+      labels: data.labels,
+      datasets: [
+        {label: 'Commits', data: data.commits, borderColor: '#4c9aff', backgroundColor: 'rgba(76,154,255,0.15)', fill: true, tension: 0.25, yAxisID: 'y'},
+        {label: 'Significance', data: data.significance, borderColor: '#3fb96f', tension: 0.25, yAxisID: 'y1'}
+      ]
+    },
+    options: {
+      maintainAspectRatio: false,
+      interaction: {mode: 'index', intersect: false},
+      plugins: {legend: {labels: {color: '#8b98a5'}}},
+      scales: {
+        x: {ticks: {color: '#8b98a5', maxTicksLimit: 12}, grid: {color: '#2a333d'}},
+        y: {ticks: {color: '#8b98a5'}, grid: {color: '#2a333d'}},
+        y1: {position: 'right', ticks: {color: '#8b98a5'}, grid: {drawOnChartArea: false}}
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

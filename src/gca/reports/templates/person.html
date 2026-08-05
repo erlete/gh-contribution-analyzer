@@ -1,0 +1,54 @@
+{% extends "report_base.html" %}
+{% block body %}
+<h2>Key numbers</h2>
+<div class="kpis">
+  <div class="kpi"><div class="v">{{ me.commits | int_fmt }}</div><div class="l">Commits</div></div>
+  <div class="kpi"><div class="v">{{ me.additions | int_fmt }}</div><div class="l">Lines added</div></div>
+  <div class="kpi"><div class="v">{{ me.deletions | int_fmt }}</div><div class="l">Lines deleted</div></div>
+  <div class="kpi"><div class="v">{{ me.churn_ratio | pct }}%</div><div class="l">Churn ratio</div></div>
+  <div class="kpi"><div class="v">{{ me.self_churn | int_fmt }}/{{ me.cross_churn | int_fmt }}</div><div class="l">Self/cross churn</div></div>
+  <div class="kpi"><div class="v">{{ me.significance | float_fmt }}</div><div class="l">Significance</div></div>
+  <div class="kpi"><div class="v">{{ me.prs_opened | int_fmt }}/{{ me.prs_merged | int_fmt }}</div><div class="l">PRs opened/merged</div></div>
+  <div class="kpi"><div class="v">{{ me.reviews | int_fmt }}</div><div class="l">Reviews</div></div>
+</div>
+
+<h2>Percentile position (population {{ population }})</h2>
+<table>
+  <tr><th>Metric</th><th class="num">Value</th><th>Percentile</th></tr>
+  {% for metric, label, value in metric_rows %}
+  <tr>
+    <td>{{ label }}</td>
+    <td class="num">{{ value }}</td>
+    <td>
+      <span class="bar"><div style="width: {{ me.percentiles.get(metric) | pct }}%"></div></span>
+      P{{ me.percentiles.get(metric) | pct }}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+{% if chart %}
+<h2>Activity trend</h2>
+<img class="chart" src="{{ chart }}" alt="trend">
+{% endif %}
+
+<h2>Per-repository split</h2>
+<table>
+  <tr>
+    <th>Repository</th><th class="num">Commits</th><th class="num">Added</th>
+    <th class="num">Churn</th><th class="num">Significance</th>
+    <th class="num">PRs merged</th><th class="num">Reviews</th>
+  </tr>
+  {% for r in split %}
+  <tr>
+    <td>{{ r.org_login }}/{{ r.name }}</td>
+    <td class="num">{{ r.commits | int_fmt }}</td>
+    <td class="num">{{ r.additions | int_fmt }}</td>
+    <td class="num">{{ r.churn | int_fmt }}</td>
+    <td class="num">{{ r.significance | float_fmt }}</td>
+    <td class="num">{{ r.prs_merged | int_fmt }}</td>
+    <td class="num">{{ r.reviews | int_fmt }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

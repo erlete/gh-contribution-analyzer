@@ -1,0 +1,11 @@
+<div class="rangebar">
+  {% for key, item in range_choices.items() %}
+  <a href="?range={{ key }}" class="{{ 'active' if period.key == key }}">{{ item[1] }}</a>
+  {% endfor %}
+  <form method="get" style="display:flex;gap:0.4rem;align-items:center">
+    <input type="date" name="from" value="" title="From">
+    <input type="date" name="to" value="" title="To">
+    <button type="submit" class="secondary">Go</button>
+  </form>
+  <span class="plabel">{{ period.label }}</span>
+</div>

@@ -1,0 +1,66 @@
+{% extends "report_base.html" %}
+{% block body %}
+<h2>Key numbers</h2>
+<div class="kpis">
+  <div class="kpi"><div class="v">{{ totals.commits | int_fmt }}</div><div class="l">Commits</div></div>
+  <div class="kpi"><div class="v">{{ totals.additions | int_fmt }}</div><div class="l">Lines added</div></div>
+  <div class="kpi"><div class="v">{{ totals.deletions | int_fmt }}</div><div class="l">Lines deleted</div></div>
+  <div class="kpi"><div class="v">{{ totals.churn_ratio | pct }}%</div><div class="l">Churn ratio</div></div>
+  <div class="kpi"><div class="v">{{ totals.significance | float_fmt }}</div><div class="l">Significance</div></div>
+  <div class="kpi"><div class="v">{{ totals.prs_merged | int_fmt }}</div><div class="l">PRs merged</div></div>
+  <div class="kpi"><div class="v">{{ totals.reviews | int_fmt }}</div><div class="l">Reviews</div></div>
+  <div class="kpi"><div class="v">{{ totals.active_people | int_fmt }}</div><div class="l">Active people</div></div>
+  <div class="kpi"><div class="v">{{ totals.active_repos | int_fmt }}</div><div class="l">Active repos</div></div>
+</div>
+
+{% if chart %}
+<h2>Activity trend</h2>
+<img class="chart" src="{{ chart }}" alt="trend">
+{% endif %}
+
+<h2>Contributors</h2>
+<table>
+  <tr>
+    <th>Person</th><th class="num">Commits</th><th class="num">Added</th>
+    <th class="num">Deleted</th><th class="num">Churn</th>
+    <th class="num">Significance</th><th class="num">PRs</th>
+    <th class="num">Reviews</th><th>Percentile</th>
+  </tr>
+  {% for p in people %}
+  <tr>
+    <td>{{ p.display_name }}</td>
+    <td class="num">{{ p.commits | int_fmt }}</td>
+    <td class="num">{{ p.additions | int_fmt }}</td>
+    <td class="num">{{ p.deletions | int_fmt }}</td>
+    <td class="num">{{ p.churn_ratio | pct }}%</td>
+    <td class="num">{{ p.significance | float_fmt }}</td>
+    <td class="num">{{ p.prs_merged | int_fmt }}</td>
+    <td class="num">{{ p.reviews | int_fmt }}</td>
+    <td>
+      <span class="bar"><div style="width: {{ p.percentiles.get('significance') | pct }}%"></div></span>
+      P{{ p.percentiles.get('significance') | pct }}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h2>Repositories</h2>
+<table>
+  <tr>
+    <th>Repository</th><th class="num">Commits</th><th class="num">Added</th>
+    <th class="num">Churn</th><th class="num">Significance</th>
+    <th class="num">PRs merged</th><th class="num">Contributors</th>
+  </tr>
+  {% for r in repos %}
+  <tr>
+    <td>{{ r.org_login }}/{{ r.name }}</td>
+    <td class="num">{{ r.commits | int_fmt }}</td>
+    <td class="num">{{ r.additions | int_fmt }}</td>
+    <td class="num">{{ r.churn | int_fmt }}</td>
+    <td class="num">{{ r.significance | float_fmt }}</td>
+    <td class="num">{{ r.prs_merged | int_fmt }}</td>
+    <td class="num">{{ r.contributors | int_fmt }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

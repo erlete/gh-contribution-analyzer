@@ -1,0 +1,80 @@
+[project]
+name = "gca"
+version = "0.1.0"
+description = "Multi-org GitHub contribution analyzer with metrics, reports and scheduled email delivery"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.141",
+    "uvicorn[standard]>=0.52",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.12",
+    "sqlalchemy>=2.0.51",
+    "psycopg[binary]>=3.3",
+    "alembic>=1.19",
+    "pydantic>=2.13",
+    "pydantic-settings>=2.14",
+    "httpx2>=2.9",
+    "weasyprint>=69",
+    "matplotlib>=3.11",
+    "apscheduler>=3.11,<4",
+    "cryptography>=50",
+    "itsdangerous>=2.1",
+]
+
+[project.scripts]
+gca = "gca.cli:main"
+gca-worker = "gca.worker:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.16",
+    "mypy>=2.3",
+    "aiosqlite>=0.20",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gca"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM", "N", "S"]
+ignore = ["E501", "S603", "S607"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S108"]
+"migrations/**" = ["I001"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "weasyprint.*",
+    "apscheduler.*",
+    "matplotlib.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "unit: fast tests with no external services",
+    "integration: tests needing postgres, git or the full stack",
+]

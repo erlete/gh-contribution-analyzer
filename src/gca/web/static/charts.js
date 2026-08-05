@@ -17,7 +17,7 @@
     if (el.dataset.ready) return;
     el.dataset.ready = '1';
     themeReady()
-      .then(function () { return fetch(el.dataset.src); })
+      .then(function () { return fetch(el.dataset.src, { cache: 'no-store' }); })
       .then(function (r) { return r.json(); })
       .then(function (option) {
         var chart = echarts.init(el, 'carbon-g90');

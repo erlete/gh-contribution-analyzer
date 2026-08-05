@@ -156,7 +156,10 @@ async def chart_people_performance(
         :limit
     ]
     decliners = sorted((d for d in deltas if d[1] < 0), key=lambda d: d[1])[:limit]
-    ordered = gainers + list(reversed(decliners))
+    ordered = [
+        (name if len(name) <= 22 else name[:21] + "…", value)
+        for name, value in gainers + list(reversed(decliners))
+    ]
     up_color = palettes.DIVERGENT[12]
     down_color = palettes.DIVERGENT[4]
     spec = ChartSpec(

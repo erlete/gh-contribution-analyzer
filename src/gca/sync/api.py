@@ -351,9 +351,23 @@ class GitHubClient:
     async def pull_requests_since(
         self, owner: str, repo: str, since: datetime | None
     ) -> list[PRInfo]:
-        """PRs updated after `since`, newest-updated first."""
+        """PRs updated after `since`, newest-updated first.
+
+        Repos with very heavy PR payloads can make the GraphQL resolver time
+        out with a 502; those fall back to REST for this call only.
+        """
         if self.use_rest:
             return await self._pull_requests_since_rest(owner, repo, since)
+        try:
+            return await self._pull_requests_since_graphql(owner, repo, since)
+        except GitHubError as exc:
+            if "502" in str(exc) or "504" in str(exc):
+                return await self._pull_requests_since_rest(owner, repo, since)
+            raise
+
+    async def _pull_requests_since_graphql(
+        self, owner: str, repo: str, since: datetime | None
+    ) -> list[PRInfo]:
         result: list[PRInfo] = []
         cursor: str | None = None
         while True:

@@ -15,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from gca.db.base import Base
+from gca.db.base import Base, BigIntPK
 
 
 class FileClass(enum.StrEnum):
@@ -34,7 +34,7 @@ class Commit(Base):
         Index("ix_commits_author_authored", "author_identity_id", "authored_at"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True)
     repo_id: Mapped[int] = mapped_column(ForeignKey("repos.id", ondelete="CASCADE"))
     oid: Mapped[str] = mapped_column(String(64))
     authored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -64,7 +64,7 @@ class CommitFile(Base):
         Index("ix_commit_files_repo_path_authored", "repo_id", "path", "authored_at"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True)
     commit_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("commits.id", ondelete="CASCADE"), index=True
     )
@@ -88,7 +88,7 @@ class PullRequest(Base):
         Index("ix_pull_requests_repo_created", "repo_id", "created_at_gh"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True)
     repo_id: Mapped[int] = mapped_column(ForeignKey("repos.id", ondelete="CASCADE"))
     number: Mapped[int] = mapped_column()
     node_id: Mapped[str | None] = mapped_column(String(100))
@@ -115,7 +115,7 @@ class Review(Base):
         Index("ix_reviews_reviewer_submitted", "reviewer_identity_id", "submitted_at"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    id: Mapped[int] = mapped_column(BigIntPK, primary_key=True)
     pull_request_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("pull_requests.id", ondelete="CASCADE"), index=True
     )

@@ -1,6 +1,6 @@
 """Declarative base with a deterministic naming convention."""
 
-from sqlalchemy import JSON, MetaData
+from sqlalchemy import JSON, BigInteger, Integer, MetaData
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase
 
@@ -14,6 +14,9 @@ NAMING_CONVENTION = {
 
 # JSONB on Postgres, plain JSON elsewhere (sqlite in unit tests).
 JSONVariant = JSON().with_variant(JSONB(), "postgresql")
+
+# BIGINT on Postgres; plain INTEGER on sqlite so autoincrement works in tests.
+BigIntPK = BigInteger().with_variant(Integer(), "sqlite")
 
 
 class Base(DeclarativeBase):

@@ -205,7 +205,11 @@ async def sync_org(
                 Org, org_id, options=[selectinload(Org.credential)]
             )
             org.sync_status = "idle"
-            org.sync_error = None
+            org.sync_error = (
+                f"{len(summary.errors)} repos failed in the last sync"
+                if summary.errors
+                else None
+            )
             org.last_synced_at = _utcnow()
             if org.credential is not None:
                 org.credential.rate_snapshot = dict(client.rate_snapshot)
@@ -256,7 +260,7 @@ async def _sync_repo(
         repo = await session.get_one(Repo, repo_id)
         run = SyncRun(org_id=org_id, repo_id=repo_id, kind="repo")
         session.add(run)
-        mirror = GitMirror(clone_dir, org_login, repo.name)
+        mirror = GitMirror(clone_dir, org_login, repo.name, token=token)
         url = repo_url_template.format(org=org_login, name=repo.name)
         try:
             repo.clone_status = (

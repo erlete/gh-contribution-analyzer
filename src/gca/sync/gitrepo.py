@@ -75,8 +75,15 @@ def parse_rename(raw: str) -> tuple[str, str | None]:
 
 
 class GitMirror:
-    def __init__(self, base_dir: str | Path, org_login: str, repo_name: str) -> None:
+    def __init__(
+        self,
+        base_dir: str | Path,
+        org_login: str,
+        repo_name: str,
+        token: str | None = None,
+    ) -> None:
         self.path = Path(base_dir) / org_login.lower() / f"{repo_name.lower()}.git"
+        self._token = token
 
     def exists(self) -> bool:
         return (self.path / "HEAD").exists()
@@ -90,6 +97,7 @@ class GitMirror:
         env = os.environ.copy()
         env["GIT_TERMINAL_PROMPT"] = "0"
         env["LC_ALL"] = "C.UTF-8"
+        token = token or self._token
         if token:
             env["GCA_GIT_TOKEN"] = token
             env.setdefault("GIT_ASKPASS", "/usr/local/bin/gca-askpass")

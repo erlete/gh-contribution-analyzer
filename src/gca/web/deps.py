@@ -4,6 +4,8 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
+from gca.web.glossary import GLOSSARY
+
 
 def fmt_int(value: float | int | None) -> str:
     if value is None:
@@ -38,6 +40,7 @@ def build_templates() -> Jinja2Templates:
     templates.env.globals["options_from_names"] = lambda names: [
         (name, name) for name in names
     ]
+    templates.env.globals["glossary"] = GLOSSARY
     return templates
 
 

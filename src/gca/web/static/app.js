@@ -99,6 +99,35 @@ function initAutosubmit(root) {
   });
 }
 
+/* Info tooltips: .info-tip tips are position: fixed so scroll containers
+   cannot clip them; place and clamp each tip when its trigger is hovered
+   or focused. Escape blurs the trigger, which hides the tip. */
+function placeInfoTip(e) {
+  var wrap = e.target && e.target.closest ? e.target.closest('.info-tip') : null;
+  if (!wrap) return;
+  var tip = wrap.querySelector('.tip');
+  if (!tip) return;
+  var r = wrap.getBoundingClientRect();
+  var pad = 8;
+  var half = tip.offsetWidth / 2;
+  var x = r.left + r.width / 2;
+  x = Math.max(pad + half, Math.min(x, window.innerWidth - pad - half));
+  var y = r.bottom + 6;
+  if (y + tip.offsetHeight > window.innerHeight - pad) {
+    y = r.top - tip.offsetHeight - 6;
+  }
+  tip.style.setProperty('--tip-x', x + 'px');
+  tip.style.setProperty('--tip-y', y + 'px');
+}
+document.addEventListener('pointerover', placeInfoTip);
+document.addEventListener('focusin', placeInfoTip);
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && document.activeElement &&
+      document.activeElement.closest && document.activeElement.closest('.info-tip')) {
+    document.activeElement.blur();
+  }
+});
+
 document.addEventListener('DOMContentLoaded', function () {
   initListBuilders();
   initRowFilters();

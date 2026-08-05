@@ -10,12 +10,12 @@
 
 <div class="panel">
   {% if period.key == 'all' %}
-  <h2>Top significance, all time</h2>
+  <h2>Top significance, all time {{ c.info(glossary.performance_all_time) }}</h2>
   <p class="helper small mb-03">
     Most significant contributors over the entire recorded history.
   </p>
   {% else %}
-  <h2>Performance vs previous period</h2>
+  <h2>Performance vs previous period {{ c.info(glossary.performance) }}</h2>
   <p class="helper small mb-03">
     Largest significance gains and drops compared with the previous window of
     equal length. Blue grew, red declined.
@@ -29,9 +29,14 @@
   <input type="search" class="rowfilter" placeholder="Filter by name"
          data-filter-rows="#board-table" aria-label="Filter contributors">
   {% call c.table("Every contributor active in " ~ period.label,
-                  [("Person",), ("Commits", "num"), ("Added", "num", "lines"), ("Deleted", "num", "lines"),
-                   ("Churn", "num", "%"), ("Significance", "num"), ("PRs merged", "num"),
-                   ("Reviews", "num"), ("Pctl", "num")], id="board-table") %}
+                  [("Person",), ("Commits", "num", None, glossary.commits),
+                   ("Added", "num", "lines", glossary.additions),
+                   ("Deleted", "num", "lines", glossary.deletions),
+                   ("Churn", "num", "%", glossary.churn_ratio),
+                   ("Significance", "num", None, glossary.significance),
+                   ("PRs merged", "num", None, glossary.prs_merged),
+                   ("Reviews", "num", None, glossary.reviews),
+                   ("Pctl", "num", None, glossary.percentile)], id="board-table") %}
     {% for p in board %}
     <tr>
       <td><a href="/people/{{ p.person_id }}">{{ p.display_name }}</a></td>

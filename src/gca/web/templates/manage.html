@@ -5,7 +5,7 @@
 <h1 class="page-title">Identity management</h1>
 
 <div class="panel">
-  <h2>Merge suggestions</h2>
+  <h2>Merge suggestions {{ c.info(glossary.merge_suggestions) }}</h2>
   <p class="muted small mb-03">
     Merging moves every identity of the absorbed person onto the kept person,
     then deletes the absorbed person. The kept person keeps its display name.
@@ -18,7 +18,8 @@
     <button type="submit" class="secondary">Scan for new suggestions</button>
   </form>
   {% call c.table("Pending merge suggestions",
-                  [("Candidate pair",), ("Why",), ("Score", "num"), ("Merge",), ("",)]) %}
+                  [("Candidate pair",), ("Why", None, None, glossary.suggestion_why),
+                   ("Score", "num", None, glossary.suggestion_score), ("Merge",), ("",)]) %}
     {% for s in suggestions %}
     {% set pa = person_by_id.get(s.person_a_id) %}
     {% set pb = person_by_id.get(s.person_b_id) %}
@@ -57,7 +58,7 @@
 </div>
 
 <div class="panel">
-  <h2>Manual merge</h2>
+  <h2>Manual merge {{ c.info(glossary.manual_merge) }}</h2>
   <p class="muted small mb-03">
     The person under <strong>Keep</strong> survives with its display name.
     The person under <strong>Absorb</strong> hands over all its identities and
@@ -75,7 +76,8 @@
   <input type="search" class="rowfilter" placeholder="Filter by name, login or email"
          data-filter-rows="#people-table" aria-label="Filter people">
   {% call c.table("Every person and the identities merged into them",
-                  [("Person",), ("Identities",), ("Rename",)], id="people-table") %}
+                  [("Person",), ("Identities", None, None, glossary.identities ~ " The split arrow detaches an identity into a person of its own, undoing a wrong merge."),
+                   ("Rename",)], id="people-table") %}
     {% for p in persons %}
     <tr>
       <td><a href="/people/{{ p.id }}">{{ p.display_name }}</a></td>

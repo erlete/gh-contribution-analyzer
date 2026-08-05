@@ -97,7 +97,7 @@
 </div>
 
 <div class="panel">
-  <h2>Report recipients</h2>
+  <h2>Report recipients {{ c.info(glossary.report_recipients) }}</h2>
   {% call c.table("Everyone who receives scheduled and manually emailed reports",
                   [("Email",), ("Note",), ("Status",), ("",)]) %}
     {% for r in recipients %}

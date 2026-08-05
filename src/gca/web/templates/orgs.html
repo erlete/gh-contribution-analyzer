@@ -91,7 +91,7 @@
 </div>
 
 <div class="panel">
-  <h2>Recent discovery runs</h2>
+  <h2>Recent discovery runs {{ c.info(glossary.discovery) }}</h2>
   {% call c.table("Latest discovery runs, newest first",
                   [("Org",), ("Status",), ("Started",), ("Stats",)]) %}
     {% for run in recent_runs %}

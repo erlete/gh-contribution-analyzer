@@ -9,19 +9,19 @@
 </div>
 
 <div class="cards count-9">
-  {{ c.kpi(totals.commits | int_fmt, "Commits") }}
-  {{ c.kpi(totals.additions | int_fmt, "Lines added") }}
-  {{ c.kpi(totals.deletions | int_fmt, "Lines deleted") }}
-  {{ c.kpi((totals.churn_ratio | pct) ~ "%", "Churn ratio") }}
-  {{ c.kpi(totals.significance | float_fmt, "Significance") }}
-  {{ c.kpi(totals.prs_merged | int_fmt, "PRs merged") }}
-  {{ c.kpi(totals.reviews | int_fmt, "Reviews") }}
-  {{ c.kpi(totals.active_people | int_fmt, "Active people") }}
-  {{ c.kpi(totals.active_repos | int_fmt, "Active repos") }}
+  {{ c.kpi(totals.commits | int_fmt, "Commits", help=glossary.commits) }}
+  {{ c.kpi(totals.additions | int_fmt, "Lines added", help=glossary.additions) }}
+  {{ c.kpi(totals.deletions | int_fmt, "Lines deleted", help=glossary.deletions) }}
+  {{ c.kpi((totals.churn_ratio | pct) ~ "%", "Churn ratio", help=glossary.churn_ratio) }}
+  {{ c.kpi(totals.significance | float_fmt, "Significance", help=glossary.significance) }}
+  {{ c.kpi(totals.prs_merged | int_fmt, "PRs merged", help=glossary.prs_merged) }}
+  {{ c.kpi(totals.reviews | int_fmt, "Reviews", help=glossary.reviews) }}
+  {{ c.kpi(totals.active_people | int_fmt, "Active people", help=glossary.active_people) }}
+  {{ c.kpi(totals.active_repos | int_fmt, "Active repos", help=glossary.active_repos) }}
 </div>
 
 <div class="panel">
-  <h2>Activity trend</h2>
+  <h2>Activity trend {{ c.info(glossary.trend) }}</h2>
   {{ c.chart("trend", "/api/charts/trend?range=" ~ period.key) }}
 </div>
 
@@ -29,7 +29,10 @@
   <div class="panel">
     <h2>Top people</h2>
     {% call c.table("Top contributors by significance in " ~ period.label,
-                    [("Person",), ("Commits", "num"), ("Significance", "num"), ("Churn", "num", "%"), ("Pctl", "num")]) %}
+                    [("Person",), ("Commits", "num", None, glossary.commits),
+                     ("Significance", "num", None, glossary.significance),
+                     ("Churn", "num", "%", glossary.churn_ratio),
+                     ("Pctl", "num", None, glossary.percentile)]) %}
       {% for p in top_people %}
       <tr>
         <td><a href="/people/{{ p.person_id }}">{{ p.display_name }}</a></td>
@@ -46,7 +49,10 @@
   <div class="panel">
     <h2>Top repositories</h2>
     {% call c.table("Top repositories by significance in " ~ period.label,
-                    [("Repo",), ("Commits", "num"), ("Significance", "num"), ("PRs", "num"), ("People", "num")]) %}
+                    [("Repo",), ("Commits", "num", None, glossary.commits),
+                     ("Significance", "num", None, glossary.significance),
+                     ("PRs", "num", None, glossary.prs_merged),
+                     ("People", "num", None, glossary.contributors)]) %}
       {% for r in top_repos %}
       <tr>
         <td><a href="/repos/{{ r.repo_id }}">{{ r.org_login }}/{{ r.name }}</a></td>

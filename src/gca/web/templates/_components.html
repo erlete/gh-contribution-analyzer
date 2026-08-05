@@ -1,9 +1,16 @@
 {# Component macro library. Every page builds from these; raw form controls
    or hand-styled fragments in page templates are a defect. #}
 
-{% macro kpi(value, label, delta=None) -%}
+{# Info tooltip: the definition rides in the button's aria-label so screen
+   readers get it without id plumbing; the visible tip is fixed-positioned
+   by app.js so scroll containers cannot clip it. #}
+{% macro info(text) -%}
+<span class="info-tip"><button type="button" class="info-btn" aria-label="{{ text }}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button><span class="tip" aria-hidden="true">{{ text }}</span></span>
+{%- endmacro %}
+
+{% macro kpi(value, label, delta=None, help=None) -%}
 <div class="card">
-  <div class="label">{{ label }}</div>
+  <div class="label">{{ label }}{% if help %} {{ info(help) }}{% endif %}</div>
   <div class="value">{{ value }}</div>
   {% if delta is not none %}
   <div class="delta {{ 'up' if delta >= 0 else 'down' }}">
@@ -94,8 +101,9 @@
 </label>
 {%- endmacro %}
 
-{# headers: list of (label, kind, unit) tuples; kind "num" right-aligns.
-   Rows come from the caller block. #}
+{# headers: list of (label, kind, unit, help) tuples; kind "num" right-aligns,
+   help renders an info tooltip after the label. Rows come from the caller
+   block. #}
 {% macro table(caption, headers, compact=False, id=None) -%}
 <div class="table-scroll">
   <table class="data{{ ' compact' if compact }}"{% if id %} id="{{ id }}"{% endif %}>
@@ -104,7 +112,7 @@
       <tr>
         {% for h in headers %}
         <th scope="col" {% if h | length > 1 and h[1] %}class="{{ h[1] }}"{% endif %}>
-          {{- h[0] }}{% if h | length > 2 and h[2] %} <span class="unit">{{ h[2] }}</span>{% endif -%}
+          {{- h[0] }}{% if h | length > 2 and h[2] %} <span class="unit">{{ h[2] }}</span>{% endif %}{% if h | length > 3 and h[3] %} {{ info(h[3]) }}{% endif -%}
         </th>
         {% endfor %}
       </tr>

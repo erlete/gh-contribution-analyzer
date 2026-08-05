@@ -4,7 +4,7 @@
 {% block content %}
 <h1 class="page-title">{{ person.display_name }}</h1>
 <div class="inline-row mb-05">
-  <span class="muted small">Identities</span>
+  <span class="muted small">Identities {{ c.info(glossary.identities) }}</span>
   {% for identity in person.identities %}
   {{ c.tag(identity.login or identity.email or identity.name, "teal", outline=True) }}
   {% endfor %}
@@ -19,20 +19,20 @@
 
 {% if me %}
 <div class="cards count-8">
-  {{ c.kpi(me.commits | int_fmt, "Commits") }}
-  {{ c.kpi(me.additions | int_fmt, "Lines added") }}
-  {{ c.kpi(me.deletions | int_fmt, "Lines deleted") }}
-  {{ c.kpi((me.churn_ratio | pct) ~ "%", "Churn ratio") }}
-  {{ c.kpi((me.self_churn | int_fmt) ~ " / " ~ (me.cross_churn | int_fmt), "Self / cross churn") }}
-  {{ c.kpi(me.significance | float_fmt, "Significance") }}
-  {{ c.kpi((me.prs_opened | int_fmt) ~ " / " ~ (me.prs_merged | int_fmt), "PRs opened / merged") }}
-  {{ c.kpi(me.reviews | int_fmt, "Reviews given") }}
+  {{ c.kpi(me.commits | int_fmt, "Commits", help=glossary.commits) }}
+  {{ c.kpi(me.additions | int_fmt, "Lines added", help=glossary.additions) }}
+  {{ c.kpi(me.deletions | int_fmt, "Lines deleted", help=glossary.deletions) }}
+  {{ c.kpi((me.churn_ratio | pct) ~ "%", "Churn ratio", help=glossary.churn_ratio) }}
+  {{ c.kpi((me.self_churn | int_fmt) ~ " / " ~ (me.cross_churn | int_fmt), "Self / cross churn", help=glossary.self_churn ~ " " ~ glossary.cross_churn) }}
+  {{ c.kpi(me.significance | float_fmt, "Significance", help=glossary.significance) }}
+  {{ c.kpi((me.prs_opened | int_fmt) ~ " / " ~ (me.prs_merged | int_fmt), "PRs opened / merged", help=glossary.prs_opened ~ " " ~ glossary.prs_merged) }}
+  {{ c.kpi(me.reviews | int_fmt, "Reviews given", help=glossary.reviews) }}
 </div>
 
 <div class="panel">
-  <h2>Percentile position (population of {{ population }})</h2>
+  <h2>Percentile position (population of {{ population }}) {{ c.info(glossary.percentile_position) }}</h2>
   {% call c.table("Standing within the population per metric",
-                  [("Metric",), ("Value", "num"), ("Percentile",)]) %}
+                  [("Metric",), ("Value", "num"), ("Percentile", None, None, glossary.percentile)]) %}
     {% for metric, label in [
       ('commits', 'Commits'), ('additions', 'Lines added'), ('churn', 'Churn lines'),
       ('significance', 'Significance'), ('prs_merged', 'PRs merged'), ('reviews', 'Reviews')
@@ -54,15 +54,19 @@
 {% endif %}
 
 <div class="panel">
-  <h2>Activity trend</h2>
+  <h2>Activity trend {{ c.info(glossary.trend) }}</h2>
   {{ c.chart("trend", "/api/charts/trend?range=" ~ period.key ~ "&person_id=" ~ person.id) }}
 </div>
 
 <div class="panel">
-  <h2>Per-repository split</h2>
+  <h2>Per-repository split {{ c.info(glossary.per_repo_split) }}</h2>
   {% call c.table("Where this person's work landed in " ~ period.label,
-                  [("Repo",), ("Commits", "num"), ("Added", "num", "lines"), ("Churn", "num", "lines"),
-                   ("Significance", "num"), ("PRs merged", "num"), ("Reviews", "num")]) %}
+                  [("Repo",), ("Commits", "num", None, glossary.commits),
+                   ("Added", "num", "lines", glossary.additions),
+                   ("Churn", "num", "lines", glossary.churn),
+                   ("Significance", "num", None, glossary.significance),
+                   ("PRs merged", "num", None, glossary.prs_merged),
+                   ("Reviews", "num", None, glossary.reviews)]) %}
     {% for r in split %}
     <tr>
       <td><a href="/repos/{{ r.repo_id }}">{{ r.org_login }}/{{ r.name }}</a></td>

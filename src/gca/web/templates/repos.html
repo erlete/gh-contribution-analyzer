@@ -10,12 +10,12 @@
 
 <div class="panel">
   {% if period.key == 'all' %}
-  <h2>Top significance, all time</h2>
+  <h2>Top significance, all time {{ c.info(glossary.performance_all_time) }}</h2>
   <p class="helper small mb-03">
     Most significant repositories over the entire recorded history.
   </p>
   {% else %}
-  <h2>Performance vs previous period</h2>
+  <h2>Performance vs previous period {{ c.info(glossary.performance) }}</h2>
   <p class="helper small mb-03">
     Repositories with the largest significance gains and drops compared with
     the previous window of equal length. Blue grew, red declined.
@@ -29,9 +29,14 @@
   <input type="search" class="rowfilter" placeholder="Filter by name"
          data-filter-rows="#board-table" aria-label="Filter repositories">
   {% call c.table("Repositories with activity in " ~ period.label,
-                  [("Repo",), ("Commits", "num"), ("Added", "num", "lines"), ("Deleted", "num", "lines"),
-                   ("Churn", "num", "lines"), ("Significance", "num"), ("PRs merged", "num"),
-                   ("Reviews", "num"), ("People", "num")], id="board-table") %}
+                  [("Repo",), ("Commits", "num", None, glossary.commits),
+                   ("Added", "num", "lines", glossary.additions),
+                   ("Deleted", "num", "lines", glossary.deletions),
+                   ("Churn", "num", "lines", glossary.churn),
+                   ("Significance", "num", None, glossary.significance),
+                   ("PRs merged", "num", None, glossary.prs_merged),
+                   ("Reviews", "num", None, glossary.reviews),
+                   ("People", "num", None, glossary.contributors)], id="board-table") %}
     {% for r in board %}
     <tr>
       <td><a href="/repos/{{ r.repo_id }}">{{ r.org_login }}/{{ r.name }}</a></td>

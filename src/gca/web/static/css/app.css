@@ -308,6 +308,9 @@
     height: var(--row-short);
     padding: 0 var(--sp-04);
     vertical-align: middle;
+    /* Headers are short; wrapping would drop info icons under their label
+       in tight numeric columns. */
+    white-space: nowrap;
   }
   table.data th .unit { color: var(--text-helper); font-weight: var(--fw-regular); font-size: var(--type-label-01-size); }
   table.data td {
@@ -352,6 +355,51 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  /* ---- info tooltips --------------------------------------------------- */
+
+  .info-tip { position: relative; display: inline-flex; vertical-align: middle; }
+  /* The trigger opts out of every default button trait: it is an inline
+     glyph, not an action. */
+  .info-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: help;
+  }
+  .info-btn:hover,
+  .info-btn:focus-visible { color: var(--text-primary); background: none; }
+  /* Fixed positioning keeps tips visible above .table-scroll and other
+     overflow containers; app.js sets --tip-x/--tip-y on hover or focus. */
+  .info-tip .tip {
+    position: fixed;
+    left: var(--tip-x, -9999px);
+    top: var(--tip-y, 0);
+    transform: translateX(-50%);
+    width: max-content;
+    max-width: calc(var(--sp-13) * 2);
+    padding: var(--sp-03) var(--sp-04);
+    background: var(--bg-inverse);
+    color: var(--text-inverse);
+    font-size: var(--type-label-01-size);
+    font-weight: var(--fw-regular);
+    line-height: 1.35;
+    letter-spacing: 0.32px;
+    text-align: left;
+    text-transform: none;
+    white-space: normal;
+    z-index: 120;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity var(--dur-fast-01) var(--ease-productive);
+    pointer-events: none;
+  }
+  .info-tip:hover .tip,
+  .info-tip:focus-within .tip { visibility: visible; opacity: 1; }
 
   /* ---- tags ------------------------------------------------------------ */
 

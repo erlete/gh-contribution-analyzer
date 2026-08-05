@@ -34,7 +34,7 @@ from gca.sync.api import (
     RateLimitError,
     RepoInfo,
 )
-from gca.sync.gitrepo import GitMirror, rmtree_robust
+from gca.sync.gitrepo import GitError, GitMirror, RawCommit, rmtree_robust
 from gca.sync.ingest import ingest_repo
 from gca.sync.prsync import upsert_pull_requests
 from gca.timeutil import ensure_utc
@@ -42,6 +42,20 @@ from gca.timeutil import ensure_utc
 DEFAULT_REPO_URL_TEMPLATE = "https://github.com/{org}/{name}.git"
 ClientFactory = Callable[[str], GitHubClient]
 SessionFactory = async_sessionmaker[AsyncSession]
+
+_TRANSIENT_GIT_MARKERS = (
+    "Could not connect",
+    "Failed to connect",
+    "Connection timed out",
+    "Could not resolve host",
+    "Connection reset",
+    "early EOF",
+)
+
+
+def _is_transient_git_error(exc: GitError) -> bool:
+    text = str(exc)
+    return any(marker in text for marker in _TRANSIENT_GIT_MARKERS)
 
 
 @dataclass
@@ -126,7 +140,7 @@ async def sync_org(
     org_id: int,
     *,
     clone_dir: str | Path,
-    concurrency: int = 4,
+    concurrency: int = 2,
     client_factory: ClientFactory = GitHubClient,
     repo_url_template: str = DEFAULT_REPO_URL_TEMPLATE,
 ) -> SyncSummary:
@@ -318,17 +332,32 @@ async def _sync_repo(
                 CloneStatus.CLONING if not mirror.exists() else CloneStatus.READY
             )
             await session.flush()
-            await asyncio.to_thread(mirror.clone_or_fetch, url, token)
+
+            default_branch = repo.default_branch
+            last_oid = repo.last_ingested_oid
+
+            def _extract() -> list[RawCommit]:
+                mirror.clone_or_fetch(url, token)
+                tip = mirror.branch_tip(default_branch)
+                if tip and tip != last_oid:
+                    return mirror.log_numstat(default_branch, last_oid)
+                return []
+
+            raw: list[RawCommit] = []
+            for attempt in range(3):
+                try:
+                    raw = await asyncio.to_thread(_extract)
+                    break
+                except GitError as exc:
+                    if attempt == 2 or not _is_transient_git_error(exc):
+                        raise
+                    await asyncio.sleep(10.0 * (attempt + 1))
             repo.clone_status = CloneStatus.READY
             repo.clone_error = None
             repo.last_fetched_at = _utcnow()
 
             new_commits = 0
-            tip = await asyncio.to_thread(mirror.branch_tip, repo.default_branch)
-            if tip and tip != repo.last_ingested_oid:
-                raw = await asyncio.to_thread(
-                    mirror.log_numstat, repo.default_branch, repo.last_ingested_oid
-                )
+            if raw:
                 stats = await ingest_repo(session, repo, raw)
                 new_commits = stats.new_commits
 

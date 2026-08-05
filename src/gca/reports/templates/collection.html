@@ -3,7 +3,7 @@
 {% block body %}
 <div class="intro">{{ intro_line }}</div>
 
-<h2>Scope key numbers</h2>
+<h2>{{ 'Selection key numbers' if selection else 'Scope key numbers' }}</h2>
 <div class="kpis">
   <div class="kpi"><div class="v">{{ totals.commits | int_fmt }}</div><div class="l">Commits</div></div>
   <div class="kpi"><div class="v">{{ totals.additions | int_fmt }}</div><div class="l">Lines added</div></div>

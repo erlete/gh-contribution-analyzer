@@ -1,5 +1,6 @@
 {% extends "report_base.html" %}
 {% block body %}
+{% if selection_line %}<div class="intro">{{ selection_line }}</div>{% endif %}
 <h2>Key numbers</h2>
 <div class="kpis">
   <div class="kpi"><div class="v">{{ totals.commits | int_fmt }}</div><div class="l">Commits</div></div>

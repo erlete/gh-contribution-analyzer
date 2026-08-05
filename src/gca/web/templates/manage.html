@@ -83,7 +83,13 @@
           {{ identity.login or (identity.name ~ ' <' ~ identity.email ~ '>') }}
           {% if p.identities | length > 1 %}
           <form method="post" action="/manage/unmerge/{{ identity.id }}" class="inline">
-            <button type="submit" class="ghost small" title="Split into its own person">split</button>
+            <button type="submit" class="icon ghost" title="Split into its own person"
+                    aria-label="Split this identity into its own person">
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                <path d="M8 2v5M8 7L3.5 11.5M8 7l4.5 4.5" fill="none"
+                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
           </form>
           {% endif %}
         </span>
@@ -92,7 +98,7 @@
       <td>
         <form method="post" action="/manage/person/{{ p.id }}/rename" class="actions">
           <input type="text" name="display_name" value="{{ p.display_name }}" class="maxw-field" aria-label="New display name">
-          <button type="submit" class="secondary small">Save</button>
+          <button type="submit" class="secondary">Save</button>
         </form>
       </td>
     </tr>

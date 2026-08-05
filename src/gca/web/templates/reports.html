@@ -89,7 +89,7 @@
         <span {% if label == 'failed' and r.error %}title="{{ r.error }}"{% endif %}>{{ c.status_tag(label) }}</span>
       </td>
       <td class="helper small nowrap">{{ r.generated_at.strftime("%Y-%m-%d %H:%M") }}</td>
-      <td>
+      <td class="cell-actions">
         <div class="actions">
           {% if r.pdf_path %}
           <a class="btn secondary small" href="/reports/{{ r.id }}/download">PDF</a>

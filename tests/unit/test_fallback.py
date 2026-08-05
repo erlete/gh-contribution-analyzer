@@ -116,3 +116,43 @@ def test_repo_no_activity() -> None:
 def test_unknown_kind_defaults_to_dashboard() -> None:
     text = fallback_text("nonsense", {"totals": {"commits": 0}})
     assert "No recorded activity" in text
+
+
+def test_all_time_dashboard_never_mentions_previous_period() -> None:
+    """All-time contexts carry no comparison keys; the statement talks about
+    the whole history and never about a previous period."""
+    text = fallback_text(
+        "dashboard",
+        {
+            "period": "All time",
+            "period_mode": "all time",
+            "orgs": "acme",
+            "totals": {
+                "commits": 5000,
+                "additions": 90000,
+                "deletions": 40000,
+                "churn_ratio": 0.15,
+                "active_people": 40,
+                "active_repos": 30,
+                "prs_opened": 700,
+                "prs_merged": 650,
+                "reviews": 900,
+            },
+        },
+    )
+    assert "entire recorded history" in text
+    assert "previous period" not in text
+
+
+def test_all_time_person_never_mentions_previous_period() -> None:
+    text = fallback_text(
+        "person",
+        {
+            "period": "All time",
+            "period_mode": "all time",
+            "person": "Jane Doe",
+            "metrics": {"commits": 900, "additions": 1000, "deletions": 100},
+        },
+    )
+    assert "entire recorded history" in text
+    assert "previous period" not in text

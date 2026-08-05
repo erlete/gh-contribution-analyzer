@@ -128,58 +128,135 @@ async def chart_repo_activity(
     return JSONResponse(render_echarts(spec))
 
 
+# Diverging performance charts show a consistent 2*limit bars: the top
+# `limit` gainers and top `limit` decliners versus the previous window.
+_PERFORMANCE_LIMIT = 10
+
+
+def _performance_spec(
+    entries: list[tuple[str, float]],
+    *,
+    limit: int,
+    all_time: bool,
+    subject: str,
+    period_label: str,
+) -> ChartSpec:
+    """Build the diverging hbar for significance deltas; for all-time
+    periods there is no previous window, so rank totals instead."""
+    up_color = palettes.DIVERGENT[12]
+    down_color = palettes.DIVERGENT[4]
+    if all_time:
+        ranked = sorted(
+            (e for e in entries if e[1] != 0), key=lambda e: e[1], reverse=True
+        )[: 2 * limit]
+        ordered = ranked
+        axis = "Total significance, all time"
+        description = f"Most significant {subject} over the entire recorded history"
+    else:
+        gainers = sorted(
+            (e for e in entries if e[1] > 0), key=lambda e: e[1], reverse=True
+        )[:limit]
+        decliners = sorted((e for e in entries if e[1] < 0), key=lambda e: e[1])[:limit]
+        ordered = gainers + list(reversed(decliners))
+        axis = "Significance change vs previous period"
+        description = (
+            f"{subject.capitalize()} whose significance grew or shrank the "
+            f"most versus the previous window, {period_label}"
+        )
+    labels = [
+        (name if len(name) <= 22 else name[:21] + "…", value) for name, value in ordered
+    ]
+    return ChartSpec(
+        kind="hbar",
+        labels=[name for name, _ in labels],
+        series=[
+            Series(
+                name="Significance change" if not all_time else "Significance",
+                values=[value for _, value in labels],
+                kind="bar",
+                item_colors=[
+                    up_color if value > 0 else down_color for _, value in labels
+                ],
+            )
+        ],
+        axes=[axis],
+        description=description,
+    )
+
+
 @router.get("/api/charts/people-performance")
 async def chart_people_performance(
-    request: Request, session: SessionDep, limit: int = 8
+    request: Request, session: SessionDep, limit: int = _PERFORMANCE_LIMIT
 ) -> JSONResponse:
     """Diverging bars: who gained and who lost the most significance
     versus the previous window of equal length."""
     scope = await get_scope(request, session)
     period = parse_range(request)
-    prev_start, prev_end = insight_context.previous_range(period.start, period.end)
+    all_time = period.key == "all"
     board = await stats.person_leaderboard(
         session, orgs=scope.selected_ids, start=period.start, end=period.end
     )
-    prev_board = await stats.person_leaderboard(
-        session, orgs=scope.selected_ids, start=prev_start, end=prev_end
-    )
-    now = {s.person_id: s for s in board}
-    before = {s.person_id: s for s in prev_board}
-    deltas: list[tuple[str, float]] = []
-    for pid in now.keys() | before.keys():
-        name = (now.get(pid) or before[pid]).display_name
-        delta = (now[pid].significance if pid in now else 0.0) - (
-            before[pid].significance if pid in before else 0.0
+    if all_time:
+        entries = [(s.display_name, round(s.significance, 1)) for s in board]
+    else:
+        prev_start, prev_end = insight_context.previous_range(period.start, period.end)
+        prev_board = await stats.person_leaderboard(
+            session, orgs=scope.selected_ids, start=prev_start, end=prev_end
         )
-        deltas.append((name, round(delta, 1)))
-    gainers = sorted((d for d in deltas if d[1] > 0), key=lambda d: d[1], reverse=True)[
-        :limit
-    ]
-    decliners = sorted((d for d in deltas if d[1] < 0), key=lambda d: d[1])[:limit]
-    ordered = [
-        (name if len(name) <= 22 else name[:21] + "…", value)
-        for name, value in gainers + list(reversed(decliners))
-    ]
-    up_color = palettes.DIVERGENT[12]
-    down_color = palettes.DIVERGENT[4]
-    spec = ChartSpec(
-        kind="hbar",
-        labels=[name for name, _ in ordered],
-        series=[
-            Series(
-                name="Significance change",
-                values=[value for _, value in ordered],
-                kind="bar",
-                item_colors=[
-                    up_color if value > 0 else down_color for _, value in ordered
-                ],
+        now = {s.person_id: s for s in board}
+        before = {s.person_id: s for s in prev_board}
+        entries = []
+        for pid in now.keys() | before.keys():
+            name = (now.get(pid) or before[pid]).display_name
+            delta = (now[pid].significance if pid in now else 0.0) - (
+                before[pid].significance if pid in before else 0.0
             )
-        ],
-        axes=["Significance change vs previous period"],
-        description=(
-            "People whose significance grew or shrank the most versus the "
-            f"previous window, {period.label}"
-        ),
+            entries.append((name, round(delta, 1)))
+    spec = _performance_spec(
+        entries,
+        limit=limit,
+        all_time=all_time,
+        subject="people",
+        period_label=period.label,
+    )
+    return JSONResponse(render_echarts(spec))
+
+
+@router.get("/api/charts/repo-performance")
+async def chart_repo_performance(
+    request: Request, session: SessionDep, limit: int = _PERFORMANCE_LIMIT
+) -> JSONResponse:
+    """Diverging bars: repositories that gained and lost the most
+    significance versus the previous window of equal length."""
+    scope = await get_scope(request, session)
+    period = parse_range(request)
+    all_time = period.key == "all"
+    board = await stats.repo_leaderboard(
+        session, orgs=scope.selected_ids, start=period.start, end=period.end
+    )
+    if all_time:
+        entries = [(f"{s.org_login}/{s.name}", round(s.significance, 1)) for s in board]
+    else:
+        prev_start, prev_end = insight_context.previous_range(period.start, period.end)
+        prev_board = await stats.repo_leaderboard(
+            session, orgs=scope.selected_ids, start=prev_start, end=prev_end
+        )
+        now = {s.repo_id: s for s in board}
+        before = {s.repo_id: s for s in prev_board}
+        entries = []
+        for rid in now.keys() | before.keys():
+            stat = now.get(rid) or before[rid]
+            name = f"{stat.org_login}/{stat.name}"
+            delta = (now[rid].significance if rid in now else 0.0) - (
+                before[rid].significance if rid in before else 0.0
+            )
+            entries.append((name, round(delta, 1)))
+    spec = _performance_spec(
+        entries,
+        limit=limit,
+        all_time=all_time,
+        subject="repositories",
+        period_label=period.label,
     )
     return JSONResponse(render_echarts(spec))
 
@@ -190,6 +267,7 @@ async def insight_partial(
 ) -> Response:
     scope = await get_scope(request, session)
     period = parse_range(request)
+    all_time = period.key == "all"
     repo_id = request.query_params.get("repo_id", "")
     person_id = request.query_params.get("person_id", "")
 
@@ -204,6 +282,7 @@ async def insight_partial(
             end=period.end,
             orgs_label=scope.label,
             period_label=period.label,
+            all_time=all_time,
         )
         area = "person"
         subject_key = f":p{person_id}"
@@ -220,6 +299,7 @@ async def insight_partial(
             end=period.end,
             orgs_label=scope.label,
             period_label=period.label,
+            all_time=all_time,
         )
         area = "repo"
         subject_key = f":r{repo_id}"
@@ -233,6 +313,7 @@ async def insight_partial(
             end=period.end,
             orgs_label=scope.label,
             period_label=period.label,
+            all_time=all_time,
         )
         area = "dashboard"
         subject_key = "" if view == "dashboard" else f":{view}"

@@ -103,7 +103,7 @@
       <td>{{ r.email }}</td>
       <td class="helper small">{{ r.note or '' }}</td>
       <td>{{ c.status_tag("ok" if r.active else "paused") }}</td>
-      <td>
+      <td class="cell-actions">
         <div class="actions">
           <form method="post" action="/settings/recipients/{{ r.id }}/toggle">
             <button type="submit" class="secondary small">{{ 'Pause' if r.active else 'Activate' }}</button>

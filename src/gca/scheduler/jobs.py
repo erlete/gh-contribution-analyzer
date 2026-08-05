@@ -9,6 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from gca.ai import insights
 from gca.config import get_settings
 from gca.identity import suggest
 from gca.mail.dispatch import send_report
@@ -254,7 +255,13 @@ async def generate_suggestions_job(factory: SessionFactory) -> None:
 
 
 async def maintenance(factory: SessionFactory) -> None:
-    """Weekly: filtered repack keeps clones slim, orphan dirs are removed."""
+    """Weekly: filtered repack keeps clones slim, orphan dirs are removed,
+    unreachable insight-cache rows are pruned."""
+    async with factory() as session:
+        pruned = await insights.prune_stale(session)
+        await session.commit()
+        if pruned:
+            log.info("pruned %s stale cached insights", pruned)
     settings = get_settings()
     clone_root = Path(settings.clone_dir)
     async with factory() as session:

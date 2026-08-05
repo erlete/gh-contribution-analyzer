@@ -15,6 +15,7 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
 import sqlalchemy as sa
@@ -24,6 +25,7 @@ from gca.ai.client import AIClient
 from gca.ai.fallback import fallback_text
 from gca.models import Insight
 from gca.services.settings import SettingsStore
+from gca.timeutil import utcnow
 
 log = logging.getLogger("gca.ai")
 
@@ -32,37 +34,49 @@ _BASE_PROMPT = (
     "analytics platform. Ground rules that always apply: use only numbers "
     "present in the provided data and never invent or extrapolate missing "
     "values; write plain English prose with no markdown, headers or bullet "
-    "lists; percentages in the data are ratios (0.42 means 42%)."
+    "lists; fractional shares in the data are ratios (0.42 means 42%) "
+    "while keys ending in _pct are already percent values (35.0 means a "
+    "35% change). Respect "
+    "the period_mode field: compare against the previous period only when "
+    "the data carries previous-period keys; when period_mode is all time "
+    "there is no previous period, so never phrase anything as a change "
+    "versus one and describe the overall history instead."
 )
 
 # Default per-area writing briefs. Operator instructions override these
 # style directives; the ground rules above always hold.
 _AREA_BRIEFS = {
     "dashboard": (
-        "Write a tight executive blurb, at most 120 words. Lead with the "
-        "most notable change versus the previous period (the data carries "
-        "previous totals and deltas), then the overall activity picture, "
-        "one outlier if any, and notable arrivals or departures."
+        "Write a tight executive blurb, at most 120 words. When the data "
+        "carries previous totals and deltas, lead with the most notable "
+        "change versus the previous period; for an all-time period lead "
+        "with the shape of the whole history instead. Then the overall "
+        "activity picture, one outlier if any, and notable arrivals or "
+        "departures when turnover data is present."
     ),
     "person": (
         "Evaluate this person's period in at most 180 words: activity "
-        "level and trend versus the previous period, rank movement and "
-        "standing within the population, where the work concentrated and "
-        "whether that focus shifted, review engagement, and anything "
-        "unusual such as churn spikes or a sudden stop or start."
+        "level (trend and rank movement versus the previous period when "
+        "that data is present), standing within the population, where the "
+        "work concentrated and whether that focus shifted, review "
+        "engagement, and anything unusual such as churn spikes or a "
+        "sudden stop or start."
     ),
     "repo": (
         "Evaluate this repository's period in at most 180 words: activity "
-        "trend versus the previous period, contributor dynamics (who "
-        "carries the work, arrivals, departures, concentration risk), "
-        "review coverage, and anything unusual."
+        "trend (versus the previous period when that data is present), "
+        "contributor dynamics (who carries the work, concentration risk, "
+        "arrivals and departures when turnover data is present), review "
+        "coverage, and anything unusual."
     ),
     "report": (
         "Write the analytical narrative for a formal report section, 150 "
-        "to 300 words. Compare against the previous period with concrete "
-        "numbers, name the likely drivers behind the change, call out "
-        "outliers, concentration risk and notable arrivals or departures, "
-        "and close with what deserves attention next period. No filler."
+        "to 300 words. When previous-period data is present, compare "
+        "against it with concrete numbers and name the likely drivers "
+        "behind the change; for an all-time period characterize the "
+        "history's arc from the weekly trend instead. Call out outliers "
+        "and concentration risk, and close with what deserves attention "
+        "next. No filler."
     ),
 }
 
@@ -177,3 +191,22 @@ async def invalidate_area(session: AsyncSession, area: str) -> int:
         )
         deleted += int(result.rowcount or 0)
     return deleted
+
+
+INSIGHT_TTL_DAYS = 30
+
+
+async def prune_stale(
+    session: AsyncSession, *, older_than_days: int = INSIGHT_TTL_DAYS
+) -> int:
+    """Delete cache rows old enough to be dead storage.
+
+    Rows are addressed by a hash of their context data, instructions and
+    model, so the moment any of those change the old row can never be hit
+    again; it just accumulates. Age is the only signal needed: a stable view
+    whose row gets pruned simply regenerates once on the next visit."""
+    cutoff = utcnow() - timedelta(days=older_than_days)
+    result: sa.CursorResult[Any] = await session.execute(  # type: ignore[assignment]
+        sa.delete(Insight).where(Insight.created_at < cutoff)
+    )
+    return int(result.rowcount or 0)

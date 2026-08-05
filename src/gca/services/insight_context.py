@@ -5,10 +5,13 @@ for the AI prompt and for the deterministic fallback statements, so the two
 always describe the same numbers. Keys are stable on purpose: they feed the
 insight cache key.
 
-Every context carries the current period, the previous period of equal
-length, deltas between the two, a weekly activity arc, and population
-dynamics (who arrived, who went quiet, how concentrated the work is), so
-the model can evaluate rather than paraphrase.
+Every context carries the current period, a weekly activity arc, and
+population dynamics (how concentrated the work is). Windowed periods also
+carry the previous period of equal length, deltas between the two and
+turnover (who arrived, who went quiet), so the model can evaluate rather
+than paraphrase. All-time periods have no previous period: builders mark
+the mode explicitly and omit every comparison key so neither the model nor
+the fallback can fabricate a period-over-period story.
 """
 
 from datetime import date, timedelta
@@ -28,6 +31,16 @@ def previous_range(start: date, end: date) -> tuple[date, date]:
     span = end - start
     prev_end = start - timedelta(days=1)
     return prev_end - span, prev_end
+
+
+ALL_TIME_MODE = "all time"
+WINDOW_MODE = "window compared against the previous window of equal length"
+
+ALL_TIME_NOTE = (
+    "This period spans the entire recorded history, so there is no previous "
+    "period. Never describe growth, decline, arrivals or departures versus "
+    "a previous period; characterize the overall history instead."
+)
 
 
 def _pct_change(current: float, previous: float) -> float | None:
@@ -118,8 +131,8 @@ async def dashboard_context(
     period_label: str,
     repo_ids: list[int] | None = None,
     person_ids: list[int] | None = None,
+    all_time: bool = False,
 ) -> dict[str, object]:
-    prev_start, prev_end = previous_range(start, end)
     totals = await stats.totals(
         session,
         orgs=orgs,
@@ -128,27 +141,11 @@ async def dashboard_context(
         repo_ids=repo_ids,
         person_ids=person_ids,
     )
-    prev_totals = await stats.totals(
-        session,
-        orgs=orgs,
-        start=prev_start,
-        end=prev_end,
-        repo_ids=repo_ids,
-        person_ids=person_ids,
-    )
     people = await stats.person_leaderboard(
         session,
         orgs=orgs,
         start=start,
         end=end,
-        repo_ids=repo_ids,
-        person_ids=person_ids,
-    )
-    prev_people = await stats.person_leaderboard(
-        session,
-        orgs=orgs,
-        start=prev_start,
-        end=prev_end,
         repo_ids=repo_ids,
         person_ids=person_ids,
     )
@@ -168,16 +165,13 @@ async def dashboard_context(
         repo_ids=repo_ids,
         person_ids=person_ids,
     )
-    return {
+    context: dict[str, object] = {
         "period": period_label,
-        "previous_period": f"{prev_start.isoformat()} to {prev_end.isoformat()}",
+        "period_mode": ALL_TIME_MODE if all_time else WINDOW_MODE,
         "orgs": orgs_label,
         "totals": _totals_dict(totals),
-        "previous_totals": _totals_dict(prev_totals),
-        "deltas_vs_previous": _totals_deltas(totals, prev_totals),
         "weekly_trend": _weekly(series),
         "top3_significance_share": _concentration(people),
-        "people_turnover": _turnover(people, prev_people),
         "top_contributors": [
             {
                 "name": p.display_name,
@@ -199,6 +193,31 @@ async def dashboard_context(
             for r in repos[:5]
         ],
     }
+    if all_time:
+        context["comparison"] = ALL_TIME_NOTE
+        return context
+    prev_start, prev_end = previous_range(start, end)
+    prev_totals = await stats.totals(
+        session,
+        orgs=orgs,
+        start=prev_start,
+        end=prev_end,
+        repo_ids=repo_ids,
+        person_ids=person_ids,
+    )
+    prev_people = await stats.person_leaderboard(
+        session,
+        orgs=orgs,
+        start=prev_start,
+        end=prev_end,
+        repo_ids=repo_ids,
+        person_ids=person_ids,
+    )
+    context["previous_period"] = f"{prev_start.isoformat()} to {prev_end.isoformat()}"
+    context["previous_totals"] = _totals_dict(prev_totals)
+    context["deltas_vs_previous"] = _totals_deltas(totals, prev_totals)
+    context["people_turnover"] = _turnover(people, prev_people)
+    return context
 
 
 async def person_context(
@@ -211,18 +230,11 @@ async def person_context(
     end: date,
     orgs_label: str,
     period_label: str,
+    all_time: bool = False,
 ) -> dict[str, object]:
-    prev_start, prev_end = previous_range(start, end)
     board = await stats.person_leaderboard(session, orgs=orgs, start=start, end=end)
-    prev_board = await stats.person_leaderboard(
-        session, orgs=orgs, start=prev_start, end=prev_end
-    )
     me = next((s for s in board if s.person_id == person_id), None)
-    prev_me = next((s for s in prev_board if s.person_id == person_id), None)
     rank = next((i + 1 for i, s in enumerate(board) if s.person_id == person_id), None)
-    prev_rank = next(
-        (i + 1 for i, s in enumerate(prev_board) if s.person_id == person_id), None
-    )
     split = await stats.person_repo_split(
         session, person_id=person_id, orgs=orgs, start=start, end=end
     )
@@ -231,11 +243,8 @@ async def person_context(
     )
     total_significance = sum(s.significance for s in board)
     commits_now = me.commits if me else 0
-    commits_prev = prev_me.commits if prev_me else 0
     significance_now = me.significance if me else 0.0
-    significance_prev = prev_me.significance if prev_me else 0.0
     reviews_now = me.reviews if me else 0
-    reviews_prev = prev_me.reviews if prev_me else 0
     metrics = {
         "commits": commits_now,
         "additions": me.additions if me else 0,
@@ -249,30 +258,16 @@ async def person_context(
         "prs_merged": me.prs_merged if me else 0,
         "reviews": reviews_now,
     }
-    previous_metrics = {
-        "commits": commits_prev,
-        "significance": round(significance_prev, 1),
-        "prs_merged": prev_me.prs_merged if prev_me else 0,
-        "reviews": reviews_prev,
-    }
-    return {
+    context: dict[str, object] = {
         "period": period_label,
-        "previous_period": f"{prev_start.isoformat()} to {prev_end.isoformat()}",
+        "period_mode": ALL_TIME_MODE if all_time else WINDOW_MODE,
         "orgs": orgs_label,
         "person": display_name,
         "metrics": metrics,
-        "previous_metrics": previous_metrics,
-        "deltas_vs_previous": {
-            "commits_pct": _pct_change(commits_now, commits_prev),
-            "significance_pct": _pct_change(significance_now, significance_prev),
-            "reviews_pct": _pct_change(reviews_now, reviews_prev),
-        },
         "percentiles": {
             k: round(v, 3) for k, v in (me.percentiles if me else {}).items()
         },
         "rank_by_significance": rank,
-        "previous_rank": prev_rank,
-        "rank_change": (prev_rank - rank) if rank and prev_rank else None,
         "population": len(board),
         "share_of_total_significance": (
             _round_ratio(me.significance / total_significance)
@@ -290,6 +285,35 @@ async def person_context(
             for r in split[:5]
         ],
     }
+    if all_time:
+        context["comparison"] = ALL_TIME_NOTE
+        return context
+    prev_start, prev_end = previous_range(start, end)
+    prev_board = await stats.person_leaderboard(
+        session, orgs=orgs, start=prev_start, end=prev_end
+    )
+    prev_me = next((s for s in prev_board if s.person_id == person_id), None)
+    prev_rank = next(
+        (i + 1 for i, s in enumerate(prev_board) if s.person_id == person_id), None
+    )
+    commits_prev = prev_me.commits if prev_me else 0
+    significance_prev = prev_me.significance if prev_me else 0.0
+    reviews_prev = prev_me.reviews if prev_me else 0
+    context["previous_period"] = f"{prev_start.isoformat()} to {prev_end.isoformat()}"
+    context["previous_metrics"] = {
+        "commits": commits_prev,
+        "significance": round(significance_prev, 1),
+        "prs_merged": prev_me.prs_merged if prev_me else 0,
+        "reviews": reviews_prev,
+    }
+    context["deltas_vs_previous"] = {
+        "commits_pct": _pct_change(commits_now, commits_prev),
+        "significance_pct": _pct_change(significance_now, significance_prev),
+        "reviews_pct": _pct_change(reviews_now, reviews_prev),
+    }
+    context["previous_rank"] = prev_rank
+    context["rank_change"] = (prev_rank - rank) if rank and prev_rank else None
+    return context
 
 
 async def repo_context(
@@ -302,36 +326,26 @@ async def repo_context(
     end: date,
     orgs_label: str,
     period_label: str,
+    all_time: bool = False,
 ) -> dict[str, object]:
-    prev_start, prev_end = previous_range(start, end)
     totals = await stats.totals(
         session, orgs=[], start=start, end=end, repo_ids=[repo_id]
     )
-    prev_totals = await stats.totals(
-        session, orgs=[], start=prev_start, end=prev_end, repo_ids=[repo_id]
-    )
     contributors = await stats.repo_contributors(
         session, repo_id=repo_id, orgs=orgs, start=start, end=end
-    )
-    prev_contributors = await stats.repo_contributors(
-        session, repo_id=repo_id, orgs=orgs, start=prev_start, end=prev_end
     )
     series = await stats.timeseries(
         session, orgs=[], start=start, end=end, repo_ids=[repo_id]
     )
     total_significance = sum(c.significance for c in contributors)
-    return {
+    context: dict[str, object] = {
         "period": period_label,
-        "previous_period": f"{prev_start.isoformat()} to {prev_end.isoformat()}",
+        "period_mode": ALL_TIME_MODE if all_time else WINDOW_MODE,
         "orgs": orgs_label,
         "repo": full_name,
         "totals": _totals_dict(totals, with_repos=False),
-        "previous_totals": _totals_dict(prev_totals, with_repos=False),
-        "deltas_vs_previous": _totals_deltas(totals, prev_totals),
         "weekly_trend": _weekly(series),
         "contributor_count": len(contributors),
-        "previous_contributor_count": len(prev_contributors),
-        "contributor_turnover": _turnover(contributors, prev_contributors),
         "top_contributor_share": (
             _round_ratio(contributors[0].significance / total_significance)
             if contributors and total_significance
@@ -348,3 +362,19 @@ async def repo_context(
             for p in contributors[:5]
         ],
     }
+    if all_time:
+        context["comparison"] = ALL_TIME_NOTE
+        return context
+    prev_start, prev_end = previous_range(start, end)
+    prev_totals = await stats.totals(
+        session, orgs=[], start=prev_start, end=prev_end, repo_ids=[repo_id]
+    )
+    prev_contributors = await stats.repo_contributors(
+        session, repo_id=repo_id, orgs=orgs, start=prev_start, end=prev_end
+    )
+    context["previous_period"] = f"{prev_start.isoformat()} to {prev_end.isoformat()}"
+    context["previous_totals"] = _totals_dict(prev_totals, with_repos=False)
+    context["deltas_vs_previous"] = _totals_deltas(totals, prev_totals)
+    context["previous_contributor_count"] = len(prev_contributors)
+    context["contributor_turnover"] = _turnover(contributors, prev_contributors)
+    return context

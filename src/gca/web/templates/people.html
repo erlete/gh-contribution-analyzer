@@ -9,11 +9,18 @@
 </div>
 
 <div class="panel">
+  {% if period.key == 'all' %}
+  <h2>Top significance, all time</h2>
+  <p class="helper small mb-03">
+    Most significant contributors over the entire recorded history.
+  </p>
+  {% else %}
   <h2>Performance vs previous period</h2>
   <p class="helper small mb-03">
     Largest significance gains and drops compared with the previous window of
     equal length. Blue grew, red declined.
   </p>
+  {% endif %}
   {{ c.chart("performance", "/api/charts/people-performance?range=" ~ period.key, tall=True) }}
 </div>
 

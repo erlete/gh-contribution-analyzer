@@ -133,6 +133,7 @@ async def fulfill_report(
     }
     scope_key = ",".join(str(i) for i in sorted(org_ids)) or "all"
     period_key = f"{report.period_kind}:{start.isoformat()}:{end.isoformat()}"
+    all_time = report.period_kind == "all"
 
     if report.kind == "overview":
         pdf = await _render_overview(
@@ -146,6 +147,7 @@ async def fulfill_report(
             repo_ids=repo_ids,
             person_ids=person_ids,
             title=report.title,
+            all_time=all_time,
         )
     elif report.kind == "person":
         pdf = await _render_people_document(
@@ -159,6 +161,7 @@ async def fulfill_report(
             repo_ids=repo_ids,
             person_ids=person_ids,
             title=report.title,
+            all_time=all_time,
         )
     else:
         pdf = await _render_repos_document(
@@ -172,6 +175,7 @@ async def fulfill_report(
             repo_ids=repo_ids,
             person_ids=person_ids,
             title=report.title,
+            all_time=all_time,
         )
 
     relative = _report_path(report.kind, _SLUGS[report.kind], start)
@@ -234,9 +238,15 @@ async def _render_overview(
     repo_ids: list[int] | None,
     person_ids: list[int] | None,
     title: str,
+    all_time: bool,
 ) -> bytes:
     totals = await stats.totals(
-        session, orgs=org_ids, start=start, end=end, repo_ids=repo_ids
+        session,
+        orgs=org_ids,
+        start=start,
+        end=end,
+        repo_ids=repo_ids,
+        person_ids=person_ids,
     )
     people = await stats.person_leaderboard(
         session,
@@ -263,6 +273,7 @@ async def _render_overview(
         period_label=str(common["period_label"]),
         repo_ids=repo_ids,
         person_ids=person_ids,
+        all_time=all_time,
     )
     narrative = await insight_for(
         session,
@@ -273,6 +284,19 @@ async def _render_overview(
         area="report",
         kind="dashboard",
     )
+    selection_parts = []
+    if person_ids:
+        noun = "person" if len(person_ids) == 1 else "people"
+        selection_parts.append(f"{len(person_ids)} selected {noun}")
+    if repo_ids:
+        noun = "repository" if len(repo_ids) == 1 else "repositories"
+        selection_parts.append(f"{len(repo_ids)} selected {noun}")
+    selection_line = (
+        "This report is filtered to " + " and ".join(selection_parts) + "; "
+        "every number below describes that selection only."
+        if selection_parts
+        else None
+    )
     return await asyncio.to_thread(
         render_pdf,
         "overview.html",
@@ -282,8 +306,14 @@ async def _render_overview(
             "totals": totals,
             "people": people,
             "repos": repos,
+            "selection_line": selection_line,
             "chart": await _chart(
-                session, orgs=org_ids, start=start, end=end, repo_ids=repo_ids
+                session,
+                orgs=org_ids,
+                start=start,
+                end=end,
+                repo_ids=repo_ids,
+                person_ids=person_ids,
             ),
             "narrative": narrative.text,
             "narrative_ai": narrative.ai,
@@ -326,6 +356,7 @@ async def _render_people_document(
     repo_ids: list[int] | None,
     person_ids: list[int] | None,
     title: str,
+    all_time: bool,
 ) -> bytes:
     board = await stats.person_leaderboard(
         session, orgs=org_ids, start=start, end=end, repo_ids=repo_ids
@@ -355,6 +386,7 @@ async def _render_people_document(
             end=end,
             orgs_label=str(common["scope_label"]),
             period_label=str(common["period_label"]),
+            all_time=all_time,
         )
         narrative = await _section_narrative(
             session,
@@ -395,6 +427,24 @@ async def _render_people_document(
             }
         )
 
+    count = len(sections)
+    noun = "person" if count == 1 else "people"
+    if person_ids:
+        intro_line = (
+            f"This document analyzes {count} selected {noun} out of the "
+            f"{len(board)} active in the scope. The introduction and key "
+            "numbers below cover the selection only; each section that "
+            "follows covers one person with their key numbers, percentile "
+            "position within the whole scope, activity trend and "
+            "per-repository split."
+        )
+    else:
+        intro_line = (
+            f"This document analyzes {count} {noun} individually. "
+            "The introduction summarizes the whole scope; each section that "
+            "follows covers one person with their key numbers, percentile "
+            "position, activity trend and per-repository split."
+        )
     return await _render_collection(
         session,
         common=common,
@@ -405,15 +455,12 @@ async def _render_people_document(
         period_key=period_key,
         slug="people",
         title=title,
-        intro_line=(
-            f"This document analyzes {len(sections)} "
-            f"{'person' if len(sections) == 1 else 'people'} individually. "
-            "The introduction summarizes the whole scope; each section that "
-            "follows covers one person with their key numbers, percentile "
-            "position, activity trend and per-repository split."
-        ),
+        intro_line=intro_line,
         sections=sections,
         population=len(board),
+        repo_ids=repo_ids,
+        person_ids=person_ids,
+        all_time=all_time,
     )
 
 
@@ -429,6 +476,7 @@ async def _render_repos_document(
     repo_ids: list[int] | None,
     person_ids: list[int] | None,
     title: str,
+    all_time: bool,
 ) -> bytes:
     board = await stats.repo_leaderboard(
         session, orgs=org_ids, start=start, end=end, person_ids=person_ids
@@ -455,6 +503,7 @@ async def _render_repos_document(
             end=end,
             orgs_label=str(common["scope_label"]),
             period_label=str(common["period_label"]),
+            all_time=all_time,
         )
         narrative = await _section_narrative(
             session,
@@ -480,6 +529,23 @@ async def _render_repos_document(
             }
         )
 
+    count = len(sections)
+    noun = "repository" if count == 1 else "repositories"
+    if repo_ids:
+        intro_line = (
+            f"This document analyzes {count} selected {noun} out of the "
+            f"{len(board)} active in the scope. The introduction and key "
+            "numbers below cover the selection only; each section that "
+            "follows covers one repository with its key numbers, activity "
+            "trend and contributor breakdown."
+        )
+    else:
+        intro_line = (
+            f"This document analyzes {count} {noun} individually. "
+            "The introduction summarizes the whole scope; each section that "
+            "follows covers one repository with its key numbers, activity "
+            "trend and contributor breakdown."
+        )
     return await _render_collection(
         session,
         common=common,
@@ -490,15 +556,12 @@ async def _render_repos_document(
         period_key=period_key,
         slug="repos",
         title=title,
-        intro_line=(
-            f"This document analyzes {len(sections)} "
-            f"{'repository' if len(sections) == 1 else 'repositories'} "
-            "individually. The introduction summarizes the whole scope; each "
-            "section that follows covers one repository with its key "
-            "numbers, activity trend and contributor breakdown."
-        ),
+        intro_line=intro_line,
         sections=sections,
         population=None,
+        repo_ids=repo_ids,
+        person_ids=person_ids,
+        all_time=all_time,
     )
 
 
@@ -516,8 +579,22 @@ async def _render_collection(
     intro_line: str,
     sections: list[dict[str, object]],
     population: int | None,
+    repo_ids: list[int] | None,
+    person_ids: list[int] | None,
+    all_time: bool,
 ) -> bytes:
-    scope_totals = await stats.totals(session, orgs=org_ids, start=start, end=end)
+    # A filtered report's introduction and key numbers describe the
+    # selection, never the whole scope: a document about three people must
+    # not open with the totals of thirty.
+    selection = bool(repo_ids or person_ids)
+    scope_totals = await stats.totals(
+        session,
+        orgs=org_ids,
+        start=start,
+        end=end,
+        repo_ids=repo_ids,
+        person_ids=person_ids,
+    )
     intro_context = await insight_context.dashboard_context(
         session,
         orgs=org_ids,
@@ -525,6 +602,9 @@ async def _render_collection(
         end=end,
         orgs_label=str(common["scope_label"]),
         period_label=str(common["period_label"]),
+        repo_ids=repo_ids,
+        person_ids=person_ids,
+        all_time=all_time,
     )
     intro_narrative = await insight_for(
         session,
@@ -543,6 +623,7 @@ async def _render_collection(
             "title": title,
             "intro_line": intro_line,
             "totals": scope_totals,
+            "selection": selection,
             "narrative": intro_narrative.text,
             "narrative_ai": intro_narrative.ai,
             "sections": sections,

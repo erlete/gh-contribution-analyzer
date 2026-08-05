@@ -9,6 +9,22 @@
 </div>
 
 <div class="panel">
+  {% if period.key == 'all' %}
+  <h2>Top significance, all time</h2>
+  <p class="helper small mb-03">
+    Most significant repositories over the entire recorded history.
+  </p>
+  {% else %}
+  <h2>Performance vs previous period</h2>
+  <p class="helper small mb-03">
+    Repositories with the largest significance gains and drops compared with
+    the previous window of equal length. Blue grew, red declined.
+  </p>
+  {% endif %}
+  {{ c.chart("performance", "/api/charts/repo-performance?range=" ~ period.key, tall=True) }}
+</div>
+
+<div class="panel">
   <h2>Active repositories ({{ board | length }})</h2>
   <input type="search" class="rowfilter" placeholder="Filter by name"
          data-filter-rows="#board-table" aria-label="Filter repositories">

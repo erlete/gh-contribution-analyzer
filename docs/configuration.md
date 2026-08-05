@@ -69,7 +69,19 @@ first:
 - login equal to a name with spaces removed
 
 Signals combine probabilistically into a score; pairs scoring at least 0.55 become
-pending suggestions on the identity screen. Each suggestion offers one button per
+pending suggestions on the identity screen.
+
+Names carried by more than two persons are excluded from name-based evidence:
+they are machine or shared-account naming (a bot author, a service login
+absorbed into several real people), and pairing their carriers would suggest
+merging independent accounts. Emails are never excluded this way, since one
+human committing under several name variants legitimately shares one email
+across identities.
+
+Every scan also revalidates pending suggestions against current data and
+deletes the ones that no longer qualify, so merges and scoring improvements
+clean up stale recommendations automatically. Dismissed suggestions are never
+resurrected and never deleted. Each suggestion offers one button per
 direction ("Keep X" absorbs the other person into X), so the survivor is always
 explicit; the kept person retains its display name. After any merge, the survivor
 is rescored against everyone else immediately, so related suggestions that were

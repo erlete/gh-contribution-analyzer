@@ -99,12 +99,12 @@ async def test_generate_skips_dismissed(session: AsyncSession) -> None:
     await get_or_create_git_identity(
         session, name="Jane Doe", email="1+janedoe@users.noreply.github.com"
     )
-    created = await suggest.generate(session)
+    created, _ = await suggest.generate(session)
     assert created >= 1
     for row in (await session.execute(suggest.sa.select(MergeSuggestion))).scalars():
         row.status = "dismissed"
     await session.flush()
-    assert await suggest.generate(session) == 0
+    assert await suggest.generate(session) == (0, 0)
     assert a.person_id != b.person_id
 
 
@@ -139,7 +139,7 @@ async def test_merge_regenerates_suggestions_for_survivor(
     a = await get_or_create_git_identity(session, name="Jane", email="jane@x.com")
     b = await get_or_create_git_identity(session, name="J. Doe", email="jane@x.com")
     c = await get_or_create_git_identity(session, name="JaneD", email="jane@x.com")
-    created = await suggest.generate(session)
+    created, _ = await suggest.generate(session)
     assert created == 3  # every pair shares the email
 
     target = await merge_persons(session, a.person_id, b.person_id)
@@ -157,6 +157,51 @@ async def test_merge_regenerates_suggestions_for_survivor(
     pairs = {(s.person_a_id, s.person_b_id) for s in pending}
     low, high = sorted((target.id, c.person_id))
     assert (low, high) in pairs
+
+
+async def test_shared_machine_name_never_pairs_carriers(
+    session: AsyncSession,
+) -> None:
+    """A name carried by more than two persons (a bot author or a shared
+    service account absorbed into several real people) must not generate
+    suggestions between the carriers: those accounts are independent."""
+    await get_or_create_git_identity(session, name="DevBot", email="eva@corp.com")
+    await get_or_create_git_identity(session, name="DevBot", email="juan@corp.com")
+    await get_or_create_git_identity(session, name="DevBot", email="ana@corp.com")
+    await get_or_create_github_identity(session, login="devbot")
+    assert await suggest.generate(session) == (0, 0)
+
+
+async def test_unique_name_login_pair_still_suggested(
+    session: AsyncSession,
+) -> None:
+    await get_or_create_git_identity(
+        session, name="Juan Labandeira", email="jl@corp.com"
+    )
+    await get_or_create_github_identity(session, login="JuanLabandeira")
+    created, _ = await suggest.generate(session)
+    assert created == 1
+
+
+async def test_generate_removes_stale_pending(session: AsyncSession) -> None:
+    alice = await get_or_create_git_identity(session, name="Alice", email="a@x.com")
+    bob = await get_or_create_git_identity(session, name="Bob", email="b@y.com")
+    session.add(
+        MergeSuggestion(
+            person_a_id=min(alice.person_id, bob.person_id),
+            person_b_id=max(alice.person_id, bob.person_id),
+            score=0.9,
+            reasons=["stale evidence"],
+        )
+    )
+    await session.flush()
+    created, removed = await suggest.generate(session)
+    assert created == 0
+    assert removed == 1
+    remaining = (
+        (await session.execute(suggest.sa.select(MergeSuggestion))).scalars().all()
+    )
+    assert remaining == []
 
 
 async def test_generate_for_person_skips_existing_and_unrelated(

@@ -77,10 +77,11 @@ async def manage_view(request: Request, session: SessionDep) -> Response:
 
 @router.post("/manage/suggest/run")
 async def run_suggestions(session: SessionDep) -> RedirectResponse:
-    created = await suggest.generate(session)
+    created, removed = await suggest.generate(session)
     await session.commit()
     return RedirectResponse(
-        f"/manage?msg={created} new suggestions generated", status_code=303
+        f"/manage?msg={created} new suggestions, {removed} stale removed",
+        status_code=303,
     )
 
 
@@ -92,7 +93,13 @@ async def accept_suggestion(
 ) -> RedirectResponse:
     """Merge a suggested pair. `keep` picks the survivor explicitly: the other
     person's identities move onto it and the other person disappears."""
-    suggestion = await session.get_one(MergeSuggestion, suggestion_id)
+    suggestion = await session.get(MergeSuggestion, suggestion_id)
+    if suggestion is None:
+        return RedirectResponse(
+            "/manage?msg=Suggestion no longer exists, an earlier merge or scan"
+            " resolved it",
+            status_code=303,
+        )
     pair = {suggestion.person_a_id, suggestion.person_b_id}
     if keep not in pair:
         return RedirectResponse(
@@ -113,7 +120,13 @@ async def accept_suggestion(
 async def dismiss_suggestion(
     session: SessionDep, suggestion_id: int
 ) -> RedirectResponse:
-    suggestion = await session.get_one(MergeSuggestion, suggestion_id)
+    suggestion = await session.get(MergeSuggestion, suggestion_id)
+    if suggestion is None:
+        return RedirectResponse(
+            "/manage?msg=Suggestion no longer exists, an earlier merge or scan"
+            " resolved it",
+            status_code=303,
+        )
     suggestion.status = "dismissed"
     await session.commit()
     return RedirectResponse("/manage?msg=Suggestion dismissed", status_code=303)

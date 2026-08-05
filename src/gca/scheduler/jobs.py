@@ -185,10 +185,12 @@ async def period_watcher(factory: SessionFactory, today: date | None = None) -> 
 
 async def generate_suggestions_job(factory: SessionFactory) -> None:
     async with factory() as session:
-        created = await suggest.generate(session)
+        created, removed = await suggest.generate(session)
         await session.commit()
-        if created:
-            log.info("generated %s merge suggestions", created)
+        if created or removed:
+            log.info(
+                "merge suggestions: %s created, %s stale removed", created, removed
+            )
 
 
 async def maintenance(factory: SessionFactory) -> None:

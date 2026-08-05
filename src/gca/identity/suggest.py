@@ -9,6 +9,7 @@ Signals, strongest first:
 """
 
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
@@ -36,6 +37,7 @@ _GENERIC_LOCALPARTS = {
     "test",
 }
 SUGGESTION_THRESHOLD = 0.55
+SHARED_NAME_OWNER_CAP = 2
 
 
 @dataclass
@@ -139,7 +141,26 @@ async def load_person_views(session: AsyncSession) -> list[PersonView]:
     for view in views.values():
         if normalize_text(view.display_name):
             view.names.add(normalize_text(view.display_name))
-    return list(views.values())
+    result = list(views.values())
+    _prune_shared_names(result)
+    return result
+
+
+def _prune_shared_names(views: list[PersonView]) -> None:
+    """Drop names carried by many persons from scoring.
+
+    A name present on more than SHARED_NAME_OWNER_CAP persons is machine or
+    shared-account naming (a bot author, a service login absorbed into
+    several real people), not identity evidence. Keeping it would pair every
+    carrier with every other carrier even though the accounts are
+    independent. Emails are never pruned: one human committing under several
+    name variants legitimately shares one email across many persons, and
+    that signal must keep working."""
+    owners: Counter[str] = Counter()
+    for view in views:
+        owners.update(view.names)
+    for view in views:
+        view.names = {n for n in view.names if owners[n] <= SHARED_NAME_OWNER_CAP}
 
 
 async def _existing_pairs(session: AsyncSession) -> set[tuple[int, int]]:
@@ -155,9 +176,33 @@ async def _existing_pairs(session: AsyncSession) -> set[tuple[int, int]]:
 
 async def generate(
     session: AsyncSession, threshold: float = SUGGESTION_THRESHOLD
-) -> int:
-    """Insert pending suggestions for every scoring pair. Returns new count."""
+) -> tuple[int, int]:
+    """Full scan: revalidate every pending suggestion against current data,
+    then insert new pairs that score. Returns (created, removed). Dismissed
+    suggestions are never resurrected and never deleted."""
     views = await load_person_views(session)
+    by_id = {v.id: v for v in views}
+    removed = 0
+    pending = (
+        (
+            await session.execute(
+                sa.select(MergeSuggestion).where(MergeSuggestion.status == "pending")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for row in pending:
+        a = by_id.get(row.person_a_id)
+        b = by_id.get(row.person_b_id)
+        score, reasons = score_pair(a, b) if a and b else (0.0, [])
+        if score < threshold:
+            await session.delete(row)
+            removed += 1
+        else:
+            row.score = round(score, 4)
+            row.reasons = reasons
+    await session.flush()
     existing_pairs = await _existing_pairs(session)
     created = 0
     for i, a in enumerate(views):
@@ -179,7 +224,7 @@ async def generate(
             existing_pairs.add((low, high))
             created += 1
     await session.flush()
-    return created
+    return created, removed
 
 
 async def generate_for_person(

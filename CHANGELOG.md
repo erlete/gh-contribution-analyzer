@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/erlete/gh-contribution-analyzer/compare/v0.1.1...v0.1.2) (2026-08-05)
+
+
+### Bug Fixes
+
+* fall back to rest when graphql times out on heavy pr pages ([#5](https://github.com/erlete/gh-contribution-analyzer/issues/5)) ([b69c662](https://github.com/erlete/gh-contribution-analyzer/commit/b69c662d9d9953297b2ac019d7b8258eac795ac9))
+
 ## [0.1.1](https://github.com/erlete/gh-contribution-analyzer/compare/v0.1.0...v0.1.1) (2026-08-05)
 
 

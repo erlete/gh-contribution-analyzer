@@ -6,10 +6,11 @@ repository; you download three files, fill in one of them, and start the stack.
 ## Prerequisites
 
 - Docker with Compose v2 (`docker compose`, not the legacy `docker-compose`)
-- For automatic HTTPS: a DNS record for your chosen domain pointing at the host, with
-  ports 80 and 443 reachable from the internet. Caddy provisions and renews TLS
-  certificates automatically for the domain set in `CADDY_DOMAIN`. With the default
-  `CADDY_DOMAIN=localhost` Caddy serves plain local traffic instead.
+
+The stack binds to `127.0.0.1` only: Caddy publishes the dashboard on
+`127.0.0.1:${APP_PORT:-8080}` and nothing else is exposed. For remote access,
+front it with whatever you already run for TLS (reverse proxy, VPN, SSH
+tunnel); the stack itself never listens on a public interface.
 
 ## Files needed
 
@@ -55,11 +56,11 @@ Generate `APP_SECRET_KEY` exactly as documented in `.env.example`:
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-### Caddy (the only exposed service)
+### Caddy (the only exposed service, loopback only)
 
 | Variable | Description |
 |---|---|
-| `CADDY_DOMAIN` | Domain Caddy serves. Keep `localhost` for local production-mode runs; set a real domain for automatic HTTPS. |
+| `APP_PORT` | Port the dashboard is published on, always bound to `127.0.0.1`. Default `8080`. |
 | `BASIC_AUTH_USER` | Basic auth username. Default `root`. |
 | `BASIC_AUTH_HASH` | bcrypt hash of the basic auth password, with every `$` doubled as `$$`. Required in production. |
 
@@ -140,7 +141,8 @@ order.
 ## Authentication model
 
 Caddy basic auth is the single authentication layer. The app itself has no login;
-it trusts the network boundary. In production only Caddy publishes ports, so every
-request to the dashboard passes through basic auth with the `BASIC_AUTH_USER` and
-`BASIC_AUTH_HASH` credentials. Do not publish the app, worker or postgres ports in
-production.
+it trusts the network boundary. Only Caddy publishes a port, bound to
+`127.0.0.1:${APP_PORT:-8080}`, so every request to the dashboard passes through
+basic auth with the `BASIC_AUTH_USER` and `BASIC_AUTH_HASH` credentials. Traffic
+is plain HTTP on loopback; anything remote must arrive through your own TLS
+proxy or tunnel. Do not publish the app, worker or postgres ports in production.

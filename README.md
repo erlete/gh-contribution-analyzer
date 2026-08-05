@@ -29,11 +29,13 @@ reports with AI-generated insights. Single admin user, English only.
 
 ## Architecture
 
-Four services defined in `compose.yml`. In production only Caddy is exposed.
+Four services defined in `compose.yml`. Only Caddy is exposed, and only on
+loopback: `127.0.0.1:${APP_PORT:-8080}`. For remote access, front it with your
+own TLS proxy or tunnel.
 
 | Service | Image | Role |
 |---|---|---|
-| caddy | `caddy:2.11` | Edge proxy, TLS, basic auth. The only published ports (80/443). |
+| caddy | `caddy:2.11` | Edge proxy, basic auth. The only published port: `127.0.0.1:${APP_PORT:-8080}`. |
 | app | `ghcr.io/erlete/gh-contribution-analyzer` | FastAPI web process (uvicorn). Serves the dashboard. Never touches clones. |
 | worker | same image, `gca-worker` command | Sync engine, metrics ingestion, schedules, report generation, email dispatch. Owns the clone volume. |
 | postgres | `postgres:18` | Source of truth. Named volume. |
@@ -45,7 +47,7 @@ docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
 - Dashboard (app, direct): http://localhost:8000
-- Caddy (production-like entry, basic auth): http://localhost:8080
+- Caddy (production-like entry, basic auth): http://127.0.0.1:8080 (port via `APP_PORT`)
 - Mailpit (captures all outgoing mail): http://localhost:8025
 - Default dev basic auth credentials: `root` / `admin`
 

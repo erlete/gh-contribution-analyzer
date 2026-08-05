@@ -8,10 +8,7 @@
 
 services:
   caddy:
-    ports: !override
-      - "8080:80"
     environment:
-      CADDY_DOMAIN: http://localhost
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-$$2a$$14$$ezyanMBy1h/v3Tss5n5rmeUIG5sjtd3Y3tBjZtEfDD/ELhC7dlbjC}
 
   app:

@@ -1,4 +1,4 @@
-{$CADDY_DOMAIN:localhost} {
+:80 {
 	basic_auth {
 		{$BASIC_AUTH_USER:root} {$BASIC_AUTH_HASH}
 	}

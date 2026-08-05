@@ -11,6 +11,7 @@ import re
 import shutil
 import stat
 import subprocess
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -210,7 +211,7 @@ class GitMirror:
             commits.append(commit)
         return commits
 
-    def backfill_blobs(self, branch: str, batch_size: int = 4000) -> int:
+    def backfill_blobs(self, branch: str, batch_size: int = 1500) -> int:
         """Bulk-fetch missing blobs before history extraction.
 
         Full-history numstat needs nearly every blob anyway; fetching them in
@@ -233,7 +234,14 @@ class GitMirror:
         ]
         for start in range(0, len(missing), batch_size):
             chunk = missing[start : start + batch_size]
-            self._run("fetch", "origin", "--no-tags", *chunk, cwd=self.path)
+            for attempt in range(3):
+                try:
+                    self._run("fetch", "origin", "--no-tags", *chunk, cwd=self.path)
+                    break
+                except GitError:
+                    if attempt == 2:
+                        raise
+                    time.sleep(5.0 * (attempt + 1))
         return len(missing)
 
     def repack(self) -> None:

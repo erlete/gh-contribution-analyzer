@@ -1,7 +1,10 @@
 """Declarative base with a deterministic naming convention."""
 
-from sqlalchemy import JSON, BigInteger, Integer, MetaData
+from typing import Any
+
+from sqlalchemy import JSON, BigInteger, Integer, MetaData, event
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase
 
 NAMING_CONVENTION = {
@@ -17,6 +20,16 @@ JSONVariant = JSON().with_variant(JSONB(), "postgresql")
 
 # BIGINT on Postgres; plain INTEGER on sqlite so autoincrement works in tests.
 BigIntPK = BigInteger().with_variant(Integer(), "sqlite")
+
+
+@event.listens_for(Engine, "connect")
+def _sqlite_fk_pragma(dbapi_connection: Any, connection_record: Any) -> None:
+    """SQLite ignores ON DELETE CASCADE unless foreign_keys is switched on."""
+    if "sqlite" not in type(dbapi_connection).__module__:
+        return
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 class Base(DeclarativeBase):

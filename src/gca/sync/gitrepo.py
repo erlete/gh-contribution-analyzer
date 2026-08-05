@@ -8,6 +8,7 @@ written to disk. Known parsing limitation, documented: file paths containing
 
 import os
 import shutil
+import stat
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -45,6 +46,17 @@ class RawCommit:
     @property
     def is_merge(self) -> bool:
         return len(self.parents) > 1
+
+
+def rmtree_robust(path: Path) -> None:
+    """rmtree that clears the read-only bit git sets on pack files (Windows)."""
+
+    def _onexc(func: object, target: str, exc: BaseException) -> None:
+        os.chmod(target, stat.S_IWRITE)
+        os.unlink(target)
+
+    if path.exists():
+        shutil.rmtree(path, onexc=_onexc)
 
 
 def parse_rename(raw: str) -> tuple[str, str | None]:
@@ -190,5 +202,4 @@ class GitMirror:
         self._run("repack", "-a", "-d", "--filter=blob:none", cwd=self.path)
 
     def remove(self) -> None:
-        if self.path.exists():
-            shutil.rmtree(self.path, ignore_errors=True)
+        rmtree_robust(self.path)

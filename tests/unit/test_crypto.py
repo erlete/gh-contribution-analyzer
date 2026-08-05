@@ -11,10 +11,19 @@ def test_roundtrip(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     assert decrypt_str(token) == "github_pat_secret"
 
 
-def test_missing_key(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_missing_key(monkeypatch, tmp_path) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.delenv("APP_SECRET_KEY", raising=False)
-    with pytest.raises(CryptoError, match="APP_SECRET_KEY"):
-        encrypt_str("x")
+    # A developer .env in the repo root would provide the key via env_file;
+    # run from an empty directory so the key is truly absent.
+    monkeypatch.chdir(tmp_path)
+    from gca.config import get_settings
+
+    get_settings.cache_clear()
+    try:
+        with pytest.raises(CryptoError, match="APP_SECRET_KEY"):
+            encrypt_str("x")
+    finally:
+        get_settings.cache_clear()
 
 
 def test_wrong_key(monkeypatch) -> None:  # type: ignore[no-untyped-def]

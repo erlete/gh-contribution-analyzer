@@ -1,4 +1,8 @@
-* text=auto
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.pdf binary
+*.dump binary
 *.sh text eol=lf
 *.py text eol=lf
 *.toml text eol=lf

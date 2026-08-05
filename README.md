@@ -16,22 +16,26 @@ reports with AI-generated insights. Single admin user, English only.
   and scope
 - Server-rendered admin dashboard with activity trends, repo and person detail views
 - PDF reports, both periodic (week, month, trimester, quarter, half year, year) and
-  on demand with custom ranges
+  on demand with custom ranges; individual reports are single documents with an
+  introduction, a table of contents and one analyzed section per person or repo
 - Scheduled email delivery via Microsoft Graph or SMTP, with graceful degradation
   when mail is unconfigured or failing (reports are stored unsent and can be
   re-dispatched later)
-- Optional AI insights through any OpenAI-compatible endpoint; panels hide when
-  unconfigured
+- AI insights through any OpenAI-compatible endpoint, with per-area operator
+  instructions; when AI is off or failing, every insight area falls back to plain
+  data statements, and AI-generated text is marked with an AI chip
 - Org, repository and person filters (whitelist or blacklist per org)
 - Person identity merge and unmerge with automatic merge suggestions
 
 ## Architecture
 
-Four services defined in `compose.yml`. In production only Caddy is exposed.
+Four services defined in `compose.yml`. Only Caddy is exposed, and only on
+loopback: `127.0.0.1:${APP_PORT:-8080}`. For remote access, front it with your
+own TLS proxy or tunnel.
 
 | Service | Image | Role |
 |---|---|---|
-| caddy | `caddy:2.11` | Edge proxy, TLS, basic auth. The only published ports (80/443). |
+| caddy | `caddy:2.11` | Edge proxy, basic auth. The only published port: `127.0.0.1:${APP_PORT:-8080}`. |
 | app | `ghcr.io/erlete/gh-contribution-analyzer` | FastAPI web process (uvicorn). Serves the dashboard. Never touches clones. |
 | worker | same image, `gca-worker` command | Sync engine, metrics ingestion, schedules, report generation, email dispatch. Owns the clone volume. |
 | postgres | `postgres:18` | Source of truth. Named volume. |
@@ -43,7 +47,7 @@ docker compose -f compose.yml -f compose.dev.yml up --build
 ```
 
 - Dashboard (app, direct): http://localhost:8000
-- Caddy (production-like entry, basic auth): http://localhost:8080
+- Caddy (production-like entry, basic auth): http://127.0.0.1:8080 (port via `APP_PORT`)
 - Mailpit (captures all outgoing mail): http://localhost:8025
 - Default dev basic auth credentials: `root` / `admin`
 

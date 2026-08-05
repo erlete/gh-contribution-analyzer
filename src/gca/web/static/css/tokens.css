@@ -1,0 +1,318 @@
+/* GENERATED FILE - DO NOT EDIT.
+   Source: design/tokens.json (regenerate with `python design/build_tokens.py`). */
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 300;
+  src: url("../fonts/plex/IBMPlexSans-Light.woff2") format("woff2");
+  font-display: block;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  src: url("../fonts/plex/IBMPlexSans-Regular.woff2") format("woff2");
+  font-display: block;
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  src: url("../fonts/plex/IBMPlexSans-SemiBold.woff2") format("woff2");
+  font-display: block;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  src: url("../fonts/plex/IBMPlexMono-Regular.woff2") format("woff2");
+  font-display: block;
+}
+
+:root {
+  --bg-base: #262626;
+  --bg-layer-01: #393939;
+  --bg-layer-02: #525252;
+  --bg-layer-03: #6f6f6f;
+  --bg-layer-hover-01: #474747;
+  --bg-layer-hover-02: #636363;
+  --bg-layer-hover-03: #5e5e5e;
+  --bg-layer-active-01: #6f6f6f;
+  --bg-layer-active-02: #8d8d8d;
+  --bg-layer-active-03: #393939;
+  --bg-layer-selected-01: #525252;
+  --bg-layer-selected-02: #6f6f6f;
+  --bg-field-01: #393939;
+  --bg-field-02: #525252;
+  --bg-field-hover-01: #474747;
+  --bg-field-hover-02: #636363;
+  --bg-hover: rgba(141, 141, 141, 0.16);
+  --bg-active: rgba(141, 141, 141, 0.4);
+  --bg-selected: rgba(141, 141, 141, 0.24);
+  --bg-selected-hover: rgba(141, 141, 141, 0.32);
+  --bg-inverse: #f4f4f4;
+  --bg-brand: #0f62fe;
+  --bg-highlight: #002d9c;
+  --bg-overlay: rgba(0, 0, 0, 0.6);
+  --bg-skeleton: #333333;
+  --bg-skeleton-element: #525252;
+  --text-primary: #f4f4f4;
+  --text-secondary: #c6c6c6;
+  --text-helper: #c6c6c6;
+  --text-placeholder: rgba(244, 244, 244, 0.4);
+  --text-on-color: #ffffff;
+  --text-on-color-disabled: rgba(255, 255, 255, 0.25);
+  --text-disabled: rgba(244, 244, 244, 0.25);
+  --text-inverse: #161616;
+  --text-error: #ffb3b8;
+  --icon-primary: #f4f4f4;
+  --icon-secondary: #c6c6c6;
+  --icon-disabled: rgba(244, 244, 244, 0.25);
+  --icon-on-color: #ffffff;
+  --icon-interactive: #ffffff;
+  --border-subtle-00: #525252;
+  --border-subtle-01: #6f6f6f;
+  --border-subtle-02: #8d8d8d;
+  --border-strong-01: #8d8d8d;
+  --border-strong-02: #a8a8a8;
+  --border-tile-01: #6f6f6f;
+  --border-tile-02: #8d8d8d;
+  --border-interactive: #4589ff;
+  --border-disabled: rgba(141, 141, 141, 0.5);
+  --border-inverse: #f4f4f4;
+  --int-primary: #0f62fe;
+  --int-primary-hover: #0050e6;
+  --int-primary-active: #002d9c;
+  --int-secondary: #6f6f6f;
+  --int-secondary-hover: #5e5e5e;
+  --int-secondary-active: #393939;
+  --int-danger: #da1e28;
+  --int-danger-hover: #b81921;
+  --int-danger-active: #750e13;
+  --int-disabled: rgba(141, 141, 141, 0.3);
+  --int-ghost: #78a9ff;
+  --int-ghost-hover: rgba(141, 141, 141, 0.16);
+  --int-ghost-active: rgba(141, 141, 141, 0.4);
+  --int-link: #78a9ff;
+  --int-link-hover: #a6c8ff;
+  --int-link-visited: #be95ff;
+  --int-focus: #ffffff;
+  --int-focus-inset: #161616;
+  --support-error: #ff8389;
+  --support-success: #42be65;
+  --support-warning: #f1c21b;
+  --support-info: #4589ff;
+  --support-caution: #ff832b;
+  --support-error-inverse: #da1e28;
+  --support-success-inverse: #24a148;
+  --support-warning-inverse: #f1c21b;
+  --support-info-inverse: #0043ce;
+  --support-notification-background: #393939;
+  --tag-gray-background: #525252;
+  --tag-gray-text: #f4f4f4;
+  --tag-gray-border: #8d8d8d;
+  --tag-gray-hover: #636363;
+  --tag-blue-background: #0043ce;
+  --tag-blue-text: #d0e2ff;
+  --tag-blue-border: #4589ff;
+  --tag-blue-hover: #0053ff;
+  --tag-green-background: #0e6027;
+  --tag-green-text: #a7f0ba;
+  --tag-green-border: #24a148;
+  --tag-green-hover: #11742f;
+  --tag-red-background: #a2191f;
+  --tag-red-text: #ffd7d9;
+  --tag-red-border: #fa4d56;
+  --tag-red-hover: #c21e25;
+  --tag-teal-background: #005d5d;
+  --tag-teal-text: #9ef0f0;
+  --tag-teal-border: #009d9a;
+  --tag-teal-hover: #007070;
+  --tag-purple-background: #6929c4;
+  --tag-purple-text: #e8daff;
+  --tag-purple-border: #a56eff;
+  --tag-purple-hover: #7c3dd6;
+  --sp-01: 0.125rem;
+  --sp-02: 0.25rem;
+  --sp-03: 0.5rem;
+  --sp-04: 0.75rem;
+  --sp-05: 1rem;
+  --sp-06: 1.5rem;
+  --sp-07: 2rem;
+  --sp-08: 2.5rem;
+  --sp-09: 3rem;
+  --sp-10: 4rem;
+  --sp-11: 5rem;
+  --sp-12: 6rem;
+  --sp-13: 10rem;
+  --radius-none: 0;
+  --radius-pill: 1rem;
+  --size-xs: 1.5rem;
+  --size-sm: 2rem;
+  --size-md: 2.5rem;
+  --size-lg: 3rem;
+  --size-xl: 4rem;
+  --size-2xl: 5rem;
+  --row-compact: 1.5rem;
+  --row-short: 2rem;
+  --row-default: 3rem;
+  --header-height: 3rem;
+  --field-height: 2.5rem;
+  --container-max: 99rem;
+  --icon-01: 1rem;
+  --icon-02: 1.25rem;
+  --focus-width: 2px;
+  --dur-fast-01: 70ms;
+  --dur-fast-02: 110ms;
+  --dur-moderate-01: 150ms;
+  --dur-moderate-02: 240ms;
+  --dur-slow-01: 400ms;
+  --dur-slow-02: 700ms;
+  --ease-productive: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ease-entrance: cubic-bezier(0, 0, 0.38, 0.9);
+  --ease-exit: cubic-bezier(0.2, 0, 1, 0.9);
+  --ease-expressive: cubic-bezier(0.4, 0.14, 0.3, 1);
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'Menlo', 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', Courier, monospace;
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-semibold: 600;
+  --type-label-01-size: 0.75rem;
+  --type-label-02-size: 0.875rem;
+  --type-helper-text-01-size: 0.75rem;
+  --type-legal-01-size: 0.75rem;
+  --type-body-compact-01-size: 0.875rem;
+  --type-body-compact-02-size: 1rem;
+  --type-body-01-size: 0.875rem;
+  --type-body-02-size: 1rem;
+  --type-code-01-size: 0.75rem;
+  --type-code-02-size: 0.875rem;
+  --type-heading-compact-01-size: 0.875rem;
+  --type-heading-compact-02-size: 1rem;
+  --type-heading-01-size: 0.875rem;
+  --type-heading-02-size: 1rem;
+  --type-heading-03-size: 1.25rem;
+  --type-heading-04-size: 1.75rem;
+  --type-heading-05-size: 2rem;
+}
+
+.type-label-01 {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.33333;
+  letter-spacing: 0.32px;
+}
+.type-label-02 {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.28572;
+  letter-spacing: 0.16px;
+}
+.type-helper-text-01 {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.33333;
+  letter-spacing: 0.32px;
+}
+.type-legal-01 {
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.33333;
+  letter-spacing: 0.32px;
+}
+.type-body-compact-01 {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.28572;
+  letter-spacing: 0.16px;
+}
+.type-body-compact-02 {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.375;
+  letter-spacing: 0;
+}
+.type-body-01 {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.42857;
+  letter-spacing: 0.16px;
+}
+.type-body-02 {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+.type-code-01 {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.33333;
+  letter-spacing: 0.32px;
+}
+.type-code-02 {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.42857;
+  letter-spacing: 0.32px;
+}
+.type-heading-compact-01 {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.28572;
+  letter-spacing: 0.16px;
+}
+.type-heading-compact-02 {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.375;
+  letter-spacing: 0;
+}
+.type-heading-01 {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.42857;
+  letter-spacing: 0.16px;
+}
+.type-heading-02 {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+.type-heading-03 {
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+.type-heading-04 {
+  font-family: var(--font-sans);
+  font-size: 1.75rem;
+  font-weight: 400;
+  line-height: 1.28572;
+  letter-spacing: 0;
+}
+.type-heading-05 {
+  font-family: var(--font-sans);
+  font-size: 2rem;
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: 0;
+}

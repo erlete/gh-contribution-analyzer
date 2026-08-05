@@ -18,9 +18,10 @@ from gca.models import (
     Org,
     Recipient,
     Repo,
+    Report,
     ReportSchedule,
 )
-from gca.reports.service import generate_reports
+from gca.reports.service import fulfill_report, generate_reports
 from gca.scheduler.periods import period_key, period_label, previous_period
 from gca.services.settings import SettingsStore
 from gca.sync.gitrepo import GitMirror, rmtree_robust
@@ -33,12 +34,18 @@ SYNC_REQUESTS_KEY = "sync_requests"
 
 
 async def reset_stale_runs(factory: SessionFactory) -> None:
-    """After a crash, orgs stuck in `running` block every future sync."""
+    """After a crash, orgs stuck in `running` block every future sync and
+    reports stuck in `generating` would never finish; requeue both."""
     async with factory() as session:
         await session.execute(
             sa.update(Org)
             .where(Org.sync_status == "running")
             .values(sync_status="idle")
+        )
+        await session.execute(
+            sa.update(Report)
+            .where(Report.status == "generating")
+            .values(status="queued")
         )
         await session.commit()
 
@@ -183,12 +190,59 @@ async def period_watcher(factory: SessionFactory, today: date | None = None) -> 
             await _finish(factory, job, period, "done")
 
 
+async def process_report_queue(factory: SessionFactory) -> None:
+    """Drain queued on-demand reports one at a time. Claiming is an atomic
+    status flip so a crashed run can be requeued at startup."""
+    while True:
+        async with factory() as session:
+            next_id = (
+                await session.execute(
+                    sa.select(Report.id)
+                    .where(Report.status == "queued")
+                    .order_by(Report.id)
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if next_id is None:
+                return
+            claimed = (
+                await session.execute(
+                    sa.update(Report)
+                    .where(Report.id == next_id, Report.status == "queued")
+                    .values(status="generating")
+                    .returning(Report.id)
+                )
+            ).scalar_one_or_none()
+            await session.commit()
+        if claimed is None:
+            continue
+        log.info("generating report %s", claimed)
+        try:
+            async with factory() as session:
+                report = await session.get_one(Report, claimed)
+                await fulfill_report(session, report)
+                await session.commit()
+        except Exception as exc:
+            log.error("report %s generation failed: %s", claimed, exc)
+            async with factory() as session:
+                failed = await session.get(Report, claimed)
+                if failed is not None:
+                    failed.status = "failed"
+                    failed.error = str(exc)[:2000]
+                    await session.commit()
+
+
 async def generate_suggestions_job(factory: SessionFactory) -> None:
     async with factory() as session:
-        created = await suggest.generate(session)
+        created, removed, merged = await suggest.generate(session)
         await session.commit()
-        if created:
-            log.info("generated %s merge suggestions", created)
+        if created or removed or merged:
+            log.info(
+                "merge suggestions: %s created, %s stale removed, %s auto-merged",
+                created,
+                removed,
+                merged,
+            )
 
 
 async def maintenance(factory: SessionFactory) -> None:

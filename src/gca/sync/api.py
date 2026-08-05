@@ -46,6 +46,12 @@ class OrgInfo:
 
 
 @dataclass
+class MemberInfo:
+    login: str
+    node_id: str
+
+
+@dataclass
 class RepoInfo:
     name: str
     node_id: str
@@ -114,6 +120,17 @@ query($login: String!, $cursor: String) {
         isFork
         defaultBranchRef { name }
       }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}
+"""
+
+_MEMBERS_QUERY = """
+query($login: String!, $cursor: String) {
+  organization(login: $login) {
+    membersWithRole(first: 100, after: $cursor) {
+      nodes { login id }
       pageInfo { hasNextPage endCursor }
     }
   }
@@ -344,6 +361,63 @@ class GitHubClient:
                 )
             if len(batch) < _PAGE:
                 return repos
+            page += 1
+
+    # -- members ------------------------------------------------------------
+
+    _MEMBERS_FORBIDDEN = (
+        "member listing forbidden: the token needs the organization Members "
+        "read permission"
+    )
+
+    async def org_members(self, login: str) -> list[MemberInfo]:
+        if self.use_rest:
+            return await self._org_members_rest(login)
+        members: list[MemberInfo] = []
+        cursor: str | None = None
+        while True:
+            try:
+                data = await self.graphql(
+                    _MEMBERS_QUERY, {"login": login, "cursor": cursor}
+                )
+            except AuthError as exc:
+                raise GitHubError(self._MEMBERS_FORBIDDEN) from exc
+            org = data.get("organization")
+            if not org:
+                raise GitHubError(
+                    f"organization {login} not visible for member listing"
+                )
+            block = org.get("membersWithRole")
+            if block is None:
+                raise GitHubError(self._MEMBERS_FORBIDDEN)
+            for node in block["nodes"]:
+                if node:
+                    members.append(
+                        MemberInfo(login=node["login"], node_id=node.get("id", ""))
+                    )
+            info = block["pageInfo"]
+            if not info["hasNextPage"]:
+                return members
+            cursor = info["endCursor"]
+
+    async def _org_members_rest(self, login: str) -> list[MemberInfo]:
+        members: list[MemberInfo] = []
+        page = 1
+        while True:
+            response = await self._request(
+                "GET", f"/orgs/{login}/members?per_page={_PAGE}&page={page}"
+            )
+            if response.status_code != 200:
+                raise GitHubError(
+                    f"{self._MEMBERS_FORBIDDEN} (http {response.status_code})"
+                )
+            batch = response.json()
+            for item in batch:
+                members.append(
+                    MemberInfo(login=item["login"], node_id=item.get("node_id", ""))
+                )
+            if len(batch) < _PAGE:
+                return members
             page += 1
 
     # -- pull requests ------------------------------------------------------

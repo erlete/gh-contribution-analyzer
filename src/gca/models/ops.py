@@ -121,6 +121,8 @@ class Report(Base):
     org_scope: Mapped[list | None] = mapped_column(JSONVariant)  # type: ignore[type-arg]
     subject_type: Mapped[str | None] = mapped_column(String(20))
     subject_id: Mapped[int | None] = mapped_column()
+    # Generation request filters (repo_ids, person_ids) for queued reports.
+    params: Mapped[dict | None] = mapped_column(JSONVariant)  # type: ignore[type-arg]
     pdf_path: Mapped[str] = mapped_column(String(500), default="")
     status: Mapped[str] = mapped_column(String(20), default="generated")
     error: Mapped[str | None] = mapped_column(Text)

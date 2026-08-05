@@ -1,6 +1,8 @@
-# Production stack. Caddy is the only exposed service.
-# Deployable without cloning the repository: download compose.yml,
-# deploy/Caddyfile and .env (see .env.example), then `docker compose up -d`.
+# Production stack. Caddy is the only exposed service, published on
+# 127.0.0.1:${APP_PORT:-8080} only. For remote access, front it with your
+# own TLS proxy or tunnel. Deployable without cloning the repository:
+# download compose.yml, deploy/Caddyfile and .env (see .env.example), then
+# `docker compose up -d`.
 
 name: gca
 
@@ -8,11 +10,14 @@ services:
   caddy:
     image: caddy:2.11
     restart: unless-stopped
+    # Loopback by default: remote access goes through your own TLS proxy or
+    # tunnel. APP_PORT picks the published port (default 8080). When the TLS
+    # proxy runs on another machine, set APP_BIND to the interface it
+    # reaches (for example the host's private LAN IP); basic auth still
+    # protects every request.
     ports:
-      - "80:80"
-      - "443:443"
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:80"
     environment:
-      CADDY_DOMAIN: ${CADDY_DOMAIN:-localhost}
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:-root}
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-}
     volumes:

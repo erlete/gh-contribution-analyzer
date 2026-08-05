@@ -190,3 +190,53 @@ async def test_rate_limit_exhausted() -> None:
             await client.validate_org("acme")
     assert excinfo.value.reset_at is not None
     assert excinfo.value.reset_at.tzinfo is not None
+
+
+async def test_org_members_paginates() -> None:
+    calls = 0
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        nonlocal calls
+        calls += 1
+        body = json.loads(request.content)
+        cursor = body["variables"].get("cursor")
+        if cursor is None:
+            return _graphql_response(
+                {
+                    "organization": {
+                        "membersWithRole": {
+                            "nodes": [{"login": "jane", "id": "U_1"}],
+                            "pageInfo": {"hasNextPage": True, "endCursor": "C1"},
+                        }
+                    }
+                }
+            )
+        return _graphql_response(
+            {
+                "organization": {
+                    "membersWithRole": {
+                        "nodes": [{"login": "bob", "id": "U_2"}],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        )
+
+    async with _client(handler) as client:
+        members = await client.org_members("acme")
+    assert calls == 2
+    assert [(m.login, m.node_id) for m in members] == [
+        ("jane", "U_1"),
+        ("bob", "U_2"),
+    ]
+
+
+async def test_org_members_permission_error_is_explicit() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return _graphql_response({"organization": {"membersWithRole": None}})
+
+    from gca.sync.api import GitHubError
+
+    async with _client(handler) as client:
+        with pytest.raises(GitHubError, match="Members read permission"):
+            await client.org_members("acme")

@@ -1,0 +1,31 @@
+# GENERATED FILE - DO NOT EDIT.
+# Source: design/tokens.json (regenerate with `python design/build_tokens.py`).
+
+figure.facecolor: none
+figure.edgecolor: none
+savefig.facecolor: none
+savefig.edgecolor: none
+svg.fonttype: none
+font.family: sans-serif
+font.sans-serif: IBM Plex Sans
+font.size: 9.0
+text.color: f4f4f4
+axes.facecolor: none
+axes.edgecolor: 8d8d8d
+axes.labelcolor: c6c6c6
+axes.titlecolor: f4f4f4
+axes.grid: True
+axes.axisbelow: True
+axes.spines.top: False
+axes.spines.right: False
+axes.linewidth: 0.75
+axes.prop_cycle: cycler('color', ['8a3ffc', '33b1ff', '007d79', 'ff7eb6', 'fa4d56', 'fff1f1', '6fdc8c', '4589ff', 'd02670', 'd2a106', '08bdba', 'bae6ff', 'ba4e00', 'd4bbff'])
+grid.color: 525252
+grid.linewidth: 0.75
+xtick.color: c6c6c6
+ytick.color: c6c6c6
+xtick.labelsize: 9.0
+ytick.labelsize: 9.0
+lines.linewidth: 1.5
+legend.frameon: False
+legend.labelcolor: c6c6c6

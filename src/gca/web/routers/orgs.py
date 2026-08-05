@@ -8,10 +8,22 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from gca.crypto import decrypt_str
 from gca.db.engine import get_session
-from gca.models import FilterMode, Org, Repo, RepoFilter, SyncRun
+from gca.models import (
+    FilterMode,
+    Org,
+    OrgMember,
+    Person,
+    PersonFilter,
+    Repo,
+    RepoFilter,
+    SyncRun,
+)
+from gca.services import membership
 from gca.services.orgs import add_org, revalidate, update_token
 from gca.services.settings import SettingsStore
+from gca.sync.api import GitHubClient
 from gca.sync.orchestrator import _repo_included, prune_orphans
 from gca.timeutil import utcnow
 from gca.web.context import get_scope
@@ -50,6 +62,13 @@ async def orgs_view(request: Request, session: SessionDep) -> Response:
     filter_names: dict[int, list[str]] = {}
     for row in filters:
         filter_names.setdefault(row.org_id, []).append(row.repo_name)
+    repo_names: dict[int, list[str]] = {}
+    for name_row in (
+        await session.execute(
+            sa.select(Repo.org_id, Repo.name).order_by(Repo.org_id, Repo.name)
+        )
+    ).all():
+        repo_names.setdefault(name_row.org_id, []).append(name_row.name)
     recent_runs = (
         (
             await session.execute(
@@ -62,6 +81,34 @@ async def orgs_view(request: Request, session: SessionDep) -> Response:
         .scalars()
         .all()
     )
+    persons = (
+        (await session.execute(sa.select(Person).order_by(Person.display_name)))
+        .scalars()
+        .all()
+    )
+    visible = await membership.visible_person_ids(session)
+    if visible is not None:
+        persons = [p for p in persons if p.id in visible]
+    person_by_id = {p.id: p for p in persons}
+    person_filter_entries: dict[int, list[dict[str, str]]] = {}
+    for prow in (await session.execute(sa.select(PersonFilter))).scalars().all():
+        person = person_by_id.get(prow.person_id)
+        person_filter_entries.setdefault(prow.org_id, []).append(
+            {
+                "value": str(prow.person_id),
+                "label": person.display_name if person else str(prow.person_id),
+            }
+        )
+    member_counts: dict[int, int] = {
+        row.org_id: row.member_count
+        for row in (
+            await session.execute(
+                sa.select(
+                    OrgMember.org_id, sa.func.count().label("member_count")
+                ).group_by(OrgMember.org_id)
+            )
+        ).all()
+    }
     return templates.TemplateResponse(
         request,
         "orgs.html",
@@ -70,7 +117,11 @@ async def orgs_view(request: Request, session: SessionDep) -> Response:
             "orgs": orgs,
             "repo_counts": repo_counts,
             "filter_names": filter_names,
+            "repo_names": repo_names,
             "recent_runs": recent_runs,
+            "persons": persons,
+            "person_filter_entries": person_filter_entries,
+            "member_counts": member_counts,
             "mail_error": None,
         },
     )
@@ -153,27 +204,131 @@ async def orgs_remove(session: SessionDep, org_id: int) -> RedirectResponse:
 
 @router.post("/orgs/{org_id}/repo-filters")
 async def orgs_repo_filters(
+    request: Request,
     session: SessionDep,
     org_id: int,
     mode: Annotated[str, Form()],
-    names: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     org = await session.get_one(Org, org_id)
     org.repo_filter_mode = FilterMode(mode)
     await session.execute(sa.delete(RepoFilter).where(RepoFilter.org_id == org_id))
-    listed = {line.strip() for line in names.splitlines() if line.strip()}
+    form = await request.form()
+    listed = {
+        value.strip()
+        for key, value in form.multi_items()
+        if key == "names" and isinstance(value, str) and value.strip()
+    }
     for name in sorted(listed):
         session.add(RepoFilter(org_id=org_id, repo_name=name))
-    repos = (
+    _apply_repo_inclusion(org, await _org_repos(session, org_id), listed)
+    await session.commit()
+    return RedirectResponse(
+        f"/orgs?msg=Repository filters updated for {org.login}", status_code=303
+    )
+
+
+def _apply_repo_inclusion(org: Org, repos: list[Repo], listed: set[str]) -> None:
+    for repo in repos:
+        repo.included = _repo_included(
+            repo.name,
+            org.repo_filter_mode,
+            listed,
+            is_fork=repo.is_fork,
+            ignore_forks=org.ignore_forks,
+        )
+
+
+async def _org_repos(session: AsyncSession, org_id: int) -> list[Repo]:
+    return list(
         (await session.execute(sa.select(Repo).where(Repo.org_id == org_id)))
         .scalars()
         .all()
     )
-    for repo in repos:
-        repo.included = _repo_included(repo.name, org.repo_filter_mode, listed)
+
+
+async def _listed_repo_names(session: AsyncSession, org_id: int) -> set[str]:
+    return {
+        row.repo_name
+        for row in (
+            await session.execute(
+                sa.select(RepoFilter).where(RepoFilter.org_id == org_id)
+            )
+        ).scalars()
+    }
+
+
+@router.post("/orgs/{org_id}/toggle-forks")
+async def orgs_toggle_forks(session: SessionDep, org_id: int) -> RedirectResponse:
+    org = await session.get_one(Org, org_id)
+    org.ignore_forks = not org.ignore_forks
+    listed = await _listed_repo_names(session, org_id)
+    _apply_repo_inclusion(org, await _org_repos(session, org_id), listed)
+    await session.commit()
+    state = "ignored everywhere" if org.ignore_forks else "included again"
+    return RedirectResponse(
+        f"/orgs?msg=Forks of {org.login} are now {state}", status_code=303
+    )
+
+
+@router.post("/orgs/{org_id}/toggle-members")
+async def orgs_toggle_members(session: SessionDep, org_id: int) -> RedirectResponse:
+    """Enable or disable the members-only hard filter. Enabling fetches the
+    member list immediately so a token without the Members permission fails
+    loudly instead of silently hiding everyone."""
+    org = await session.get_one(Org, org_id, options=[selectinload(Org.credential)])
+    if org.members_only:
+        org.members_only = False
+        await session.commit()
+        return RedirectResponse(
+            f"/orgs?msg=Members-only disabled for {org.login}, external people"
+            " count again",
+            status_code=303,
+        )
+    if org.credential is None:
+        return RedirectResponse(
+            "/orgs?msg=Cannot enable members-only without a stored token",
+            status_code=303,
+        )
+    try:
+        token = decrypt_str(org.credential.token_encrypted)
+        async with GitHubClient(token) as client:
+            member_infos = await client.org_members(org.login)
+        stored = await membership.store_members(
+            session, org.id, [(m.login, m.node_id) for m in member_infos]
+        )
+        org.members_only = True
+        await session.commit()
+        message = (
+            f"Members-only enabled for {org.login}: {stored} members,"
+            " everyone else is now hidden everywhere"
+        )
+    except Exception as exc:
+        await session.rollback()
+        message = f"Members-only not enabled: {exc}"
+    return RedirectResponse(f"/orgs?msg={message}", status_code=303)
+
+
+@router.post("/orgs/{org_id}/person-filters")
+async def orgs_person_filters(
+    request: Request,
+    session: SessionDep,
+    org_id: int,
+    mode: Annotated[str, Form()],
+) -> RedirectResponse:
+    org = await session.get_one(Org, org_id)
+    form = await request.form()
+    person_ids = [
+        int(value)
+        for key, value in form.multi_items()
+        if key == "person_ids" and isinstance(value, str) and value.isdigit()
+    ]
+    org.person_filter_mode = FilterMode(mode)
+    await session.execute(sa.delete(PersonFilter).where(PersonFilter.org_id == org_id))
+    for pid in person_ids:
+        session.add(PersonFilter(org_id=org_id, person_id=pid))
     await session.commit()
     return RedirectResponse(
-        f"/orgs?msg=Repository filters updated for {org.login}", status_code=303
+        f"/orgs?msg=Person filters updated for {org.login}", status_code=303
     )
 
 

@@ -13,6 +13,7 @@
   h1 { font-size: 20px; margin: 0 0 2px; }
   h2 { font-size: 12px; margin: 18px 0 6px; color: #2f6fb6; text-transform: uppercase; letter-spacing: 0.6px; }
   .sub { color: #66727e; font-size: 10px; margin-bottom: 14px; }
+  .intro { font-size: 10px; margin: 10px 0; }
   .kpis { display: flex; flex-wrap: wrap; gap: 8px; }
   .kpi { border: 1px solid #dde3e9; border-radius: 6px; padding: 7px 12px; min-width: 90px; }
   .kpi .v { font-size: 15px; font-weight: 700; }
@@ -24,19 +25,30 @@
   img.chart { width: 100%; margin-top: 4px; }
   .bar { background: #edf1f5; border-radius: 3px; height: 6px; width: 70px; display: inline-block; vertical-align: middle; }
   .bar div { background: #2f6fb6; height: 6px; border-radius: 3px; }
-  .narrative { background: #f4f8fc; border: 1px solid #d9e4f0; border-radius: 6px; padding: 10px 12px; margin-top: 8px; font-size: 10px; }
+  .narrative { position: relative; background: #f4f8fc; border: 1px solid #d9e4f0; border-radius: 6px; padding: 10px 44px 10px 12px; margin-top: 8px; font-size: 10px; }
+  .ai-chip { position: absolute; top: 6px; right: 8px; border: 1px solid #2f6fb6; color: #2f6fb6; border-radius: 999px; padding: 1px 6px; font-size: 7px; font-weight: 700; letter-spacing: 0.4px; }
+  .ai-chip svg { vertical-align: -1px; }
+  ol.toc { list-style: none; margin: 6px 0; padding: 0; column-count: 2; column-gap: 24px; }
+  ol.toc li { font-size: 9px; padding: 2px 0; border-bottom: 0.5px dotted #c6ced6; }
+  ol.toc a { color: #1d2730; text-decoration: none; }
+  ol.toc a::after { content: "  " target-counter(attr(href), page); float: right; color: #66727e; }
+  section.section { page-break-before: always; }
+  section.section h2.section-title { font-size: 15px; color: #1d2730; text-transform: none; letter-spacing: 0; margin: 0 0 4px; border-bottom: 1.5px solid #2f6fb6; padding-bottom: 3px; }
   .footer-note { color: #98a2ac; font-size: 8px; margin-top: 20px; }
 </style>
 </head>
 <body>
+  {% import "_macros.html" as macros %}
   <h1>{% block heading %}{{ title }}{% endblock %}</h1>
   <div class="sub">{{ period_label }} | scope: {{ scope_label }} | generated {{ generated_at }}</div>
-  {% if narrative %}<div class="narrative">{{ narrative }}</div>{% endif %}
+  {{ macros.narrative_box(narrative, narrative_ai) }}
   {% block body %}{% endblock %}
   <div class="footer-note">
     Churn counts lines rewritten within {{ churn_window }} days of being added
     (file-level approximation). Significance is a log-scaled, class-weighted
     volume score; merge commits and mechanical changes are discounted.
+    Narratives marked AI are model-generated from the report data; unmarked
+    narratives are computed statements.
   </div>
 </body>
 </html>

@@ -71,7 +71,7 @@ nav.main a.active { color: var(--text); border-bottom: 2px solid var(--accent); 
 }
 .scope label { display: block; padding: 0.15rem 0; color: var(--text); }
 
-main { padding: 1.2rem; max-width: 1280px; margin: 0 auto; }
+main { padding: 1.2rem 1.6rem; }
 
 .banner {
   border-radius: 8px;
@@ -111,6 +111,7 @@ main { padding: 1.2rem; max-width: 1280px; margin: 0 auto; }
   margin-bottom: 1.2rem;
 }
 .panel h2 { margin: 0 0 0.8rem; font-size: 1.05rem; }
+.panel h3.subhead { margin: 0 0 0.6rem; font-size: 0.92rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
 
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
 @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
@@ -135,6 +136,7 @@ tr:hover td { background: rgba(76, 154, 255, 0.05); }
 .pill.accent { color: var(--accent); border-color: var(--accent); }
 
 .insight {
+  position: relative;
   background: linear-gradient(135deg, rgba(76, 154, 255, 0.08), rgba(63, 185, 111, 0.05));
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -143,6 +145,56 @@ tr:hover td { background: rgba(76, 154, 255, 0.05); }
   color: var(--text);
 }
 .insight .tag { color: var(--accent); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.6px; }
+
+.chip-ai {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(76, 154, 255, 0.08);
+}
+.chip-ai svg { display: block; }
+
+.list-builder .lb-add { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+.list-builder .lb-add select { flex: 1; max-width: 420px; }
+.lb-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  height: 180px;
+  overflow-y: auto;
+  background: var(--panel-2);
+}
+.lb-items li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+.lb-items li:last-child { border-bottom: 0; }
+.lb-remove {
+  background: none;
+  border: 0;
+  color: var(--bad);
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0.1rem 0.3rem;
+}
+.lb-empty { color: var(--muted); font-size: 0.85rem; padding: 0.3rem 0.6rem; }
+
+input.rowfilter { max-width: 320px; margin-bottom: 0.7rem; }
 
 form.stack { display: grid; gap: 0.7rem; max-width: 460px; }
 label.field { display: grid; gap: 0.25rem; color: var(--muted); font-size: 0.88rem; }

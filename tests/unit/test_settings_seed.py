@@ -29,17 +29,18 @@ def _env(**overrides: object) -> Settings:
     return Settings(_env_file=None, **overrides)  # type: ignore[arg-type]
 
 
-async def test_seed_graph_takes_priority(session: AsyncSession) -> None:
-    store = SettingsStore(session)
-    await store.seed_from_env(
-        _env(
-            mail_azure_client_id="cid",
-            mail_azure_client_secret="csecret",
-            mail_azure_tenant_id="tid",
-            mail_sender_address="noreply@example.com",
-            smtp_host="mailpit",
-        )
+def _graph_env() -> Settings:
+    return _env(
+        mail_azure_client_id="cid",
+        mail_azure_client_secret="csecret",
+        mail_azure_tenant_id="tid",
+        mail_sender_address="noreply@example.com",
     )
+
+
+async def test_seed_graph(session: AsyncSession) -> None:
+    store = SettingsStore(session)
+    await store.seed_from_env(_graph_env())
     cfg = await store.mail_config()
     assert cfg is not None and cfg.provider == "graph"
     assert cfg.graph is not None
@@ -49,9 +50,12 @@ async def test_seed_graph_takes_priority(session: AsyncSession) -> None:
     assert raw["graph"]["client_secret_enc"] != "csecret"
 
 
-async def test_seed_smtp_when_no_graph(session: AsyncSession) -> None:
+async def test_smtp_is_in_app_only(session: AsyncSession) -> None:
+    """SMTP has no environment seeds; it is set from the settings screen."""
     store = SettingsStore(session)
-    await store.seed_from_env(_env(smtp_host="mailpit", smtp_port=1025))
+    await store.seed_from_env(_env())
+    assert await store.mail_config() is None
+    await store.set_mail_smtp(SmtpMailConfig(host="mailpit", port=1025))
     cfg = await store.mail_config()
     assert cfg is not None and cfg.provider == "smtp"
     assert cfg.smtp is not None and cfg.smtp.port == 1025
@@ -59,9 +63,9 @@ async def test_seed_smtp_when_no_graph(session: AsyncSession) -> None:
 
 async def test_seed_is_idempotent(session: AsyncSession) -> None:
     store = SettingsStore(session)
-    await store.seed_from_env(_env(smtp_host="mailpit"))
+    await store.seed_from_env(_graph_env())
     await store.set_mail_smtp(SmtpMailConfig(host="manual-edit"))
-    await store.seed_from_env(_env(smtp_host="mailpit"))
+    await store.seed_from_env(_graph_env())
     cfg = await store.mail_config()
     assert cfg is not None and cfg.smtp is not None
     assert cfg.smtp.host == "manual-edit"
@@ -87,3 +91,20 @@ async def test_ai_roundtrip(session: AsyncSession) -> None:
     assert cfg is not None
     assert cfg.key == "sk-test"
     assert cfg.model == "qwen-max"
+
+
+async def test_ai_instructions_roundtrip(session: AsyncSession) -> None:
+    store = SettingsStore(session)
+    assert await store.ai_instructions() == {
+        "dashboard": "",
+        "person": "",
+        "repo": "",
+        "report": "",
+    }
+    await store.set_ai_instructions(
+        {"dashboard": "  focus on totals  ", "person": "", "bogus": "ignored"}
+    )
+    values = await store.ai_instructions()
+    assert values["dashboard"] == "focus on totals"
+    assert values["person"] == ""
+    assert "bogus" not in values

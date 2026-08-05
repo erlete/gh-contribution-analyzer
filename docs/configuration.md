@@ -3,7 +3,7 @@
 ## Philosophy
 
 `.env` carries deployment internals only (database, secret key, edge proxy). The
-`MAIL_*`, `SMTP_*` and `AI_*` environment values are seeds: on first boot they are
+`MAIL_*` and `AI_*` environment values are seeds: on first boot they are
 imported into the settings table, and only for keys that do not exist yet. From then
 on the in-app settings screen is the single authority; changing the environment
 later has no effect on already-seeded keys. All secrets stored in the database
@@ -40,15 +40,36 @@ never consumes API quota.
 
 ## Repository filters
 
-Per org, `repo_filter_mode` is one of `all`, `whitelist` or `blacklist`. Repository
-names are entered one per line on the orgs page. With no names listed and mode
-`all`, every repository is included. Changing filters immediately recomputes each
-repo's inclusion flag.
+Per org, `repo_filter_mode` is one of `all`, `whitelist` or `blacklist`. On the
+orgs page, repositories are picked from a dropdown of the org's known repos and
+collected into a removable list. With nothing listed and mode `all`, every
+repository is included. Changing filters immediately recomputes each repo's
+inclusion flag.
+
+## Hard filters: forks and org members
+
+Both live on the orgs page, per org, and both are hard: they remove data from
+every surface at once (repos, people, identities, suggestions, stats, report
+selectors and report content).
+
+- **Ignore forks**: forked repositories are excluded like filtered repos.
+  Their history stays in the database and returns the moment the toggle is
+  turned off. People whose only activity was in forks disappear with them.
+- **Only org members**: restricts every surface to persons linked to an org
+  member, by GitHub login or by a git identity committing under that login's
+  GitHub noreply address. Enabling fetches the member list immediately and
+  fails loudly when the token lacks the organization Members read permission;
+  the membership snapshot then refreshes on every sync. External
+  contributors, fork authors and unmatched git identities are hidden while
+  the toggle is on. Note that a member's separate git identities only count
+  as the member once merged (the suggestion engine proposes exactly those
+  merges).
 
 ## Person filters
 
-The same mechanism exists per org for persons (`all`, `whitelist`, `blacklist`),
-managed from the people screen, to exclude bots or scope reports to a team.
+The same list mechanism exists per org for persons (`all`, `whitelist`,
+`blacklist`), managed on the orgs page next to the other per-org settings, to
+exclude bots or scope reports to a team.
 
 ## Identity merging
 
@@ -68,7 +89,36 @@ first:
 - login equal to a name with spaces removed
 
 Signals combine probabilistically into a score; pairs scoring at least 0.55 become
-pending suggestions that you accept or dismiss in the people screen.
+pending suggestions on the identity screen.
+
+The first two signals are identity proofs, not heuristics: GitHub issued that
+noreply address for exactly that account, and two identities writing from the
+same mailbox belong to the same human. Pairs carrying either signal are
+merged automatically during scans instead of waiting in the queue. The
+survivor is chosen by priority: the person holding a GitHub login identity,
+then the one whose display name looks like a human full name, then the one
+with more consolidated evidence, then the older person. Dismissed pairs are
+never auto-merged (a human already said no), and every automatic merge is
+reversible identity by identity through the split action.
+
+Names carried by more than two persons are excluded from name-based evidence:
+they are machine or shared-account naming (a bot author, a service login
+absorbed into several real people), and pairing their carriers would suggest
+merging independent accounts. Emails are never excluded this way, since one
+human committing under several name variants legitimately shares one email
+across identities.
+
+Every scan also revalidates pending suggestions against current data and
+deletes the ones that no longer qualify, so merges and scoring improvements
+clean up stale recommendations automatically. Dismissed suggestions are never
+resurrected and never deleted. Each suggestion offers one button per
+direction ("Keep X" absorbs the other person into X), so the survivor is always
+explicit; the kept person retains its display name. After any merge, the survivor
+is rescored against everyone else immediately, so related suggestions that were
+cleared by the merge reappear without waiting for the next scan.
+
+Commits are attributed to their git author only; `Co-authored-by` trailers are
+not parsed (see docs/metrics.md).
 
 ## Mail
 
@@ -88,9 +138,10 @@ attachments over 3 MB switch to an upload session automatically.
 
 ### SMTP
 
-Host, port, optional username and password, STARTTLS toggle and sender address. In
-development the compose overlay points SMTP at Mailpit, so every mail is captured
-at http://localhost:8025 instead of being delivered.
+Host, port, optional username and password, STARTTLS toggle and sender address.
+SMTP has no environment seeds: it is configured on the settings screen only. In
+development, point it at Mailpit (host `mailpit`, port `1025`, STARTTLS off) so
+every mail is captured at http://localhost:8025 instead of being delivered.
 
 ### Test send and degradation
 
@@ -102,11 +153,37 @@ re-dispatched.
 ## AI insights
 
 Configure an OpenAI-compatible endpoint: base URL, optional bearer key, and model
-name. The insight service assembles a compact statistical context for the current
-view, scope and period, requests a short English narrative, and caches the result
-in the database keyed by view, org scope and period, so repeated visits do not
-re-query the model. When AI is unconfigured or erroring, insight panels are hidden
-and reports render without narrative sections.
+name. The insight service assembles a wide statistical context for the current
+view, scope and period: totals, leaderboards, percentiles and per-repo splits,
+plus the previous period of equal length with percent deltas, a weekly trend
+arc, rank movement, who became active and who went quiet, and how concentrated
+the work is. The model is asked to evaluate, not paraphrase: each area has its
+own default brief (a tight dashboard blurb; person and repository evaluations
+covering trend, standing and anomalies; a 150 to 300 word analytical report
+narrative that compares periods and closes with what to watch). Results are
+cached in the database keyed by view, org scope, period, data, area,
+instructions and model, so repeated visits do not re-query the model.
+
+Every insight area always renders. AI-generated text carries a brain AI chip in
+the top right corner, in the web views and in the PDF reports. When AI is
+unconfigured or a call fails, the same area shows deterministic data statements
+built from the same context, without the chip, so the structure of every page
+and report is identical either way.
+
+The settings screen also holds per-area generation instructions (dashboard,
+person views, repository views, reports), for example "highlight review
+activity" or "write in a formal tone". Operator instructions take precedence
+over the default brief of their area: length, tone, structure and emphasis
+follow the operator wherever the two conflict, and only the factuality ground
+rules (real numbers, no invention) are non-negotiable. Saving changed
+instructions discards every cached AI comment of the affected areas, so all
+of them regenerate with the new guidance as their views load. Already
+generated PDF reports are immutable documents and keep their narratives.
+
+In large combined report documents, the 40 most significant sections get AI
+narratives (subjects are ordered by significance) and sections beyond the cap
+use the fallback statements, so the people and repositories that matter get
+real analysis while generation time stays bounded.
 
 ## Report schedules
 
@@ -121,6 +198,18 @@ Period kinds: `week`, `month`, `trimester`, `quarter`, `half_year`, `year`.
 | half_year | Jan-Jun and Jul-Dec |
 | year | Calendar year |
 
+Report kinds: `overview` is one document over the whole scope. `person` and
+`repo` also produce one document each: an introduction with the scope's key
+numbers, a table of contents with page numbers, then one analyzed section per
+person or repository (key numbers, percentile position, activity trend,
+splits, narrative).
+
+On-demand generation is non-blocking: requesting a report queues it
+immediately and the worker renders it in the background. The archive shows
+the live status per report (generating, generated, failed with the error);
+download and email become available once generated. Reports interrupted by a
+worker restart are requeued automatically.
+
 Periodic reports are generated only when a period closes: a daily watcher looks at
 the most recent fully closed period per enabled schedule and a job ledger
 guarantees each period fires exactly once. Generation is never retroactive; older
@@ -129,8 +218,9 @@ recipients list, managed on the settings screen.
 
 ## Sync scheduling
 
-- Automatic: every organization with sync enabled is synced every 6 hours (with
-  jitter; the first run starts shortly after the worker boots).
+- Automatic: every organization with sync enabled is synced every hour (with
+  jitter; the first run starts shortly after the worker boots), so dashboards
+  never trail reality by more than about an hour.
 - Manual: the "Sync now" button queues a request that the worker picks up within
   30 seconds. Orgs already running are skipped.
 - Maintenance: weekly (Sunday 04:00 UTC), the worker repacks every clone with the

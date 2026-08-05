@@ -51,6 +51,60 @@ def test_overview_pdf_renders() -> None:
             "repos": [repo],
             "chart": trend_chart_data_uri(series),
             "narrative": "A <b>test</b> narrative & sample.",
+            "narrative_ai": True,
+        },
+    )
+    assert pdf.startswith(b"%PDF")
+    assert len(pdf) > 5000
+
+
+def test_collection_pdf_renders_with_toc_and_sections() -> None:
+    from gca.reports.builder import render_pdf
+
+    jane = PersonStat(person_id=1, display_name="Jane Doe")
+    jane.commits = 5
+    jane.significance = 12.5
+    jane.percentiles = {"significance": 0.9, "commits": 0.8}
+    repo_totals = Totals(commits=9, additions=200, prs_merged=2, reviews=3)
+    contributor = PersonStat(person_id=1, display_name="Jane Doe")
+    contributor.commits = 9
+
+    pdf = render_pdf(
+        "collection.html",
+        {
+            "title": "Individual contributor report, test",
+            "period_label": "March 2026",
+            "scope_label": "acme",
+            "generated_at": "2026-03-31 00:15 UTC",
+            "churn_window": 21,
+            "intro_line": "This document analyzes 2 subjects individually.",
+            "totals": Totals(commits=14, additions=300, active_people=1),
+            "narrative": "Overall narrative.",
+            "narrative_ai": False,
+            "population": 3,
+            "sections": [
+                {
+                    "anchor": "p1",
+                    "heading": "Jane Doe",
+                    "kind": "person",
+                    "me": jane,
+                    "split": [],
+                    "metric_rows": [("commits", "Commits", "5")],
+                    "chart": None,
+                    "narrative": "Jane's section narrative.",
+                    "narrative_ai": True,
+                },
+                {
+                    "anchor": "r1",
+                    "heading": "acme/core",
+                    "kind": "repo",
+                    "totals": repo_totals,
+                    "contributors": [contributor],
+                    "chart": None,
+                    "narrative": "Repo section narrative.",
+                    "narrative_ai": False,
+                },
+            ],
         },
     )
     assert pdf.startswith(b"%PDF")

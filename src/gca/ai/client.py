@@ -12,8 +12,13 @@ import httpx2
 
 from gca.services.settings import AIConfig
 
-_TIMEOUT = 30.0
+_TIMEOUT = 90.0
 _RETRY_SLEEP = 2.0
+
+# Reasoning models (Qwen3 and friends) burn output budget on hidden thinking
+# before emitting the visible answer, so the ceiling must leave room for both
+# plus the longer analytical report narratives.
+_DEFAULT_MAX_TOKENS = 6000
 
 
 class AIError(RuntimeError):
@@ -63,7 +68,9 @@ class AIClient:
             return response
         raise AIError("ai request failed after retry")
 
-    async def complete(self, system: str, user: str, *, max_tokens: int = 700) -> str:
+    async def complete(
+        self, system: str, user: str, *, max_tokens: int = _DEFAULT_MAX_TOKENS
+    ) -> str:
         url = self._config.url.rstrip("/") + "/chat/completions"
         body: dict[str, object] = {
             "model": self._config.model,
@@ -87,4 +94,10 @@ class AIClient:
             raise AIError(f"malformed ai response: {exc}") from exc
         if not isinstance(content, str) or not content.strip():
             raise AIError("ai response contained no content")
-        return content.strip()
+        content = content.strip()
+        # Reasoning models may inline their thinking; keep only the answer.
+        if content.startswith("<think>") and "</think>" in content:
+            content = content.split("</think>", 1)[1].strip()
+        if not content:
+            raise AIError("ai response contained only reasoning, no answer")
+        return content

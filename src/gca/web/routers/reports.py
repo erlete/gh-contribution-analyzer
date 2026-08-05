@@ -18,8 +18,9 @@ from gca.config import get_settings
 from gca.db.engine import get_session
 from gca.mail.dispatch import send_report
 from gca.models import Org, Person, Recipient, Repo, Report, ReportSchedule
-from gca.reports.service import REPORT_KINDS, generate_reports
+from gca.reports.service import REPORT_KINDS, request_report
 from gca.scheduler.periods import PERIOD_KINDS
+from gca.services import membership
 from gca.web.context import get_scope
 from gca.web.deps import templates
 
@@ -57,6 +58,9 @@ async def reports_view(request: Request, session: SessionDep) -> Response:
         .scalars()
         .all()
     )
+    visible = await membership.visible_person_ids(session)
+    if visible is not None:
+        persons = [p for p in persons if p.id in visible]
     return templates.TemplateResponse(
         request,
         "reports.html",
@@ -101,7 +105,7 @@ async def reports_generate(
     except ValueError:
         return RedirectResponse("/reports?msg=Invalid dates", status_code=303)
     try:
-        reports = await generate_reports(
+        report = await request_report(
             session,
             kind=kind,
             org_ids=scope.selected_ids,
@@ -112,16 +116,21 @@ async def reports_generate(
             person_ids=person_ids or None,
         )
         await session.commit()
-        message = f"{len(reports)} report(s) generated"
+        message = (
+            f"Report queued: {report.title}. The worker generates it in the"
+            " background, watch the archive status"
+        )
     except Exception as exc:
         await session.rollback()
-        message = f"Generation failed: {exc}"
+        message = f"Request failed: {exc}"
     return RedirectResponse(f"/reports?msg={message}", status_code=303)
 
 
 @router.get("/reports/{report_id}/download")
 async def reports_download(session: SessionDep, report_id: int) -> Response:
     report = await session.get_one(Report, report_id)
+    if not report.pdf_path:
+        return HTMLResponse("Report is not generated yet", status_code=404)
     path = Path(get_settings().reports_dir) / report.pdf_path
     if not path.exists():
         return HTMLResponse("PDF file missing on disk", status_code=404)
@@ -135,6 +144,10 @@ async def reports_download(session: SessionDep, report_id: int) -> Response:
 @router.post("/reports/{report_id}/email")
 async def reports_email(session: SessionDep, report_id: int) -> RedirectResponse:
     report = await session.get_one(Report, report_id)
+    if not report.pdf_path:
+        return RedirectResponse(
+            "/reports?msg=Report is not generated yet", status_code=303
+        )
     recipients = [
         r.email
         for r in (

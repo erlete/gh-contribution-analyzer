@@ -11,6 +11,14 @@ Straight counts from ingested history:
 - pull requests opened and merged
 - reviews given
 
+**Commit attribution**: every commit is attributed to its git author (the
+name/email pair on the commit) only. `Co-authored-by` trailers in commit
+messages are not parsed, so co-authors receive no credit for shared commits.
+This is intentional: trailer usage is inconsistent across teams and tooling,
+and splitting line counts between co-authors would make every downstream
+metric (churn, significance, percentiles) ambiguous. If a co-author's own
+commits exist, they are counted normally under their identity.
+
 ## Churn
 
 Churn measures how quickly written code gets rewritten or deleted.

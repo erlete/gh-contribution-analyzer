@@ -1,0 +1,16 @@
+{
+  "button-danger-active": "#750e13",
+  "button-danger-hover": "#b81921",
+  "button-danger-primary": "#da1e28",
+  "button-danger-secondary": "#ff8389",
+  "button-primary": "#0f62fe",
+  "button-primary-active": "#002d9c",
+  "button-primary-hover": "#0050e6",
+  "button-secondary": "#6f6f6f",
+  "button-secondary-active": "#393939",
+  "button-secondary-hover": "#5e5e5e",
+  "button-separator": "#161616",
+  "button-tertiary": "#ffffff",
+  "button-tertiary-active": "#c6c6c6",
+  "button-tertiary-hover": "#f4f4f4"
+}

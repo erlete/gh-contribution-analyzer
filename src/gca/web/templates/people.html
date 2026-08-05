@@ -5,7 +5,9 @@
 
 <div class="panel">
   <h2>Contributors ({{ board | length }})</h2>
-  <table>
+  <input type="search" class="rowfilter" placeholder="Filter by name"
+         data-filter-rows="#board-table" aria-label="Filter contributors">
+  <table id="board-table">
     <tr>
       <th>Person</th><th class="num">Commits</th><th class="num">Added</th>
       <th class="num">Deleted</th><th class="num">Churn ratio</th>

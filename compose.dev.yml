@@ -3,28 +3,26 @@
 # defaults below are public development values: NEVER reuse them in any
 # production .env. Run with:
 #   docker compose -f compose.yml -f compose.dev.yml up --build
+# Mail in dev: configure SMTP once on the settings screen with host mailpit,
+# port 1025, STARTTLS off. SMTP has no environment seeds.
 
 services:
   caddy:
-    ports: !override
-      - "8080:80"
     environment:
-      CADDY_DOMAIN: http://localhost
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:-$$2a$$14$$ezyanMBy1h/v3Tss5n5rmeUIG5sjtd3Y3tBjZtEfDD/ELhC7dlbjC}
 
   app:
     build: .
     image: gh-contribution-analyzer:dev
     command: uvicorn gca.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src
+    # Loopback only: this port bypasses Caddy and its basic auth entirely
+    # (a dev convenience for direct app access); it must never be reachable
+    # from the network.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       APP_SECRET_KEY: ${APP_SECRET_KEY:-mr-qnw-SwqyywZTKYwVqY4163BDQIZGpBE1ox7e0eiM=}
       PYTHONPATH: /app/src
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_STARTTLS: "false"
-      SMTP_SENDER_ADDRESS: gca-dev@localhost
     volumes:
       - ./src:/app/src:ro
       - ./migrations:/app/migrations:ro
@@ -35,10 +33,6 @@ services:
     environment:
       APP_SECRET_KEY: ${APP_SECRET_KEY:-mr-qnw-SwqyywZTKYwVqY4163BDQIZGpBE1ox7e0eiM=}
       PYTHONPATH: /app/src
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_STARTTLS: "false"
-      SMTP_SENDER_ADDRESS: gca-dev@localhost
     volumes:
       - ./src:/app/src:ro
       - ./migrations:/app/migrations:ro
@@ -49,14 +43,14 @@ services:
     environment:
       POSTGRES_PASSWORD: gca
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
 
   mailpit:
     image: axllent/mailpit:v1.30
     restart: unless-stopped
     ports:
-      - "8025:8025"
-      - "1025:1025"
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
     environment:
       MP_DATABASE: /data/mailpit.db
     volumes:

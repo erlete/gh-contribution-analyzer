@@ -1,0 +1,178 @@
+{
+  "_meta": "GENERATED FILE - DO NOT EDIT. Source: design/tokens.json.",
+  "color": [
+    "#8a3ffc",
+    "#33b1ff",
+    "#007d79",
+    "#ff7eb6",
+    "#fa4d56",
+    "#fff1f1",
+    "#6fdc8c",
+    "#4589ff",
+    "#d02670",
+    "#d2a106",
+    "#08bdba",
+    "#bae6ff",
+    "#ba4e00",
+    "#d4bbff"
+  ],
+  "backgroundColor": "transparent",
+  "textStyle": {
+    "color": "#f4f4f4",
+    "fontFamily": "IBM Plex Sans"
+  },
+  "title": {
+    "textStyle": {
+      "color": "#f4f4f4",
+      "fontFamily": "IBM Plex Sans"
+    },
+    "subtextStyle": {
+      "color": "#c6c6c6",
+      "fontFamily": "IBM Plex Sans"
+    }
+  },
+  "legend": {
+    "textStyle": {
+      "color": "#c6c6c6",
+      "fontFamily": "IBM Plex Sans"
+    },
+    "pageTextStyle": {
+      "color": "#c6c6c6"
+    }
+  },
+  "tooltip": {
+    "backgroundColor": "#161616",
+    "borderColor": "#525252",
+    "textStyle": {
+      "color": "#f4f4f4",
+      "fontFamily": "IBM Plex Sans"
+    }
+  },
+  "categoryAxis": {
+    "axisLine": {
+      "lineStyle": {
+        "color": "#8d8d8d"
+      }
+    },
+    "axisTick": {
+      "lineStyle": {
+        "color": "#8d8d8d"
+      }
+    },
+    "axisLabel": {
+      "color": "#c6c6c6",
+      "fontFamily": "IBM Plex Sans"
+    },
+    "splitLine": {
+      "lineStyle": {
+        "color": "#525252",
+        "width": 1
+      }
+    },
+    "splitArea": {
+      "show": false
+    },
+    "nameTextStyle": {
+      "color": "#c6c6c6",
+      "fontFamily": "IBM Plex Sans"
+    }
+  },
+  "valueAxis": {
+    "axisLine": {
+      "lineStyle": {
+        "color": "#8d8d8d"
+      }
+    },
+    "axisTick": {
+      "lineStyle": {
+        "color": "#8d8d8d"
+      }
+    },
+    "axisLabel": {
+      "color": "#c6c6c6",
+      "fontFamily": "IBM Plex Sans"
+    },
+    "splitLine": {
+      "lineStyle": {
+        "color": "#525252",
+        "width": 1
+      }
+    },
+    "splitArea": {
+      "show": false
+    },
+    "nameTextStyle": {
+      "color": "#c6c6c6",
+      "fontFamily": "IBM Plex Sans"
+    }
+  },
+  "timeAxis": {
+    "axisLine": {
+      "lineStyle": {
+        "color": "#8d8d8d"
+      }
+    },
+    "axisTick": {
+      "lineStyle": {
+        "color": "#8d8d8d"
+      }
+    },
+    "axisLabel": {
+      "color": "#c6c6c6",
+      "fontFamily": "IBM Plex Sans"
+    },
+    "splitLine": {
+      "lineStyle": {
+        "color": "#525252",
+        "width": 1
+      }
+    },
+    "splitArea": {
+      "show": false
+    },
+    "nameTextStyle": {
+      "color": "#c6c6c6",
+      "fontFamily": "IBM Plex Sans"
+    }
+  },
+  "logAxis": {
+    "axisLine": {
+      "lineStyle": {
+        "color": "#8d8d8d"
+      }
+    },
+    "axisTick": {
+      "lineStyle": {
+        "color": "#8d8d8d"
+      }
+    },
+    "axisLabel": {
+      "color": "#c6c6c6",
+      "fontFamily": "IBM Plex Sans"
+    },
+    "splitLine": {
+      "lineStyle": {
+        "color": "#525252",
+        "width": 1
+      }
+    },
+    "splitArea": {
+      "show": false
+    },
+    "nameTextStyle": {
+      "color": "#c6c6c6",
+      "fontFamily": "IBM Plex Sans"
+    }
+  },
+  "line": {
+    "lineStyle": {
+      "width": 2
+    },
+    "symbolSize": 5
+  },
+  "bar": {
+    "itemStyle": {
+      "borderWidth": 0
+    }
+  }
+}

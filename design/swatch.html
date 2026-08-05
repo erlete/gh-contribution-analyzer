@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>gca design tokens - g90 swatch</title>
+<link rel="stylesheet" href="../src/gca/web/static/css/tokens.css">
+<style>
+  /* Swatch page chrome. Values come exclusively from tokens.css variables. */
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    padding: var(--sp-07);
+    display: grid;
+    gap: var(--sp-07);
+  }
+  h1 { font-weight: var(--fw-light); }
+  section > h2 { margin-bottom: var(--sp-04); color: var(--text-secondary); }
+  .row { display: flex; flex-wrap: wrap; gap: var(--sp-03); }
+  .chip {
+    width: var(--sp-11);
+    padding: var(--sp-03);
+    border: 1px solid var(--border-subtle-00);
+    font-size: var(--type-label-01-size);
+    color: var(--text-secondary);
+  }
+  .chip .fill { height: var(--sp-07); margin-bottom: var(--sp-02); }
+  .stack { padding: var(--sp-05); border: 1px solid var(--border-subtle-00); }
+  .stack .stack { margin-top: var(--sp-03); }
+  .l0 { background: var(--bg-base); }
+  .l1 { background: var(--bg-layer-01); border-color: var(--border-subtle-01); }
+  .l2 { background: var(--bg-layer-02); border-color: var(--border-subtle-02); }
+  .l3 { background: var(--bg-layer-03); }
+  .btn {
+    height: var(--field-height);
+    padding: 0 var(--sp-05);
+    border: none;
+    border-radius: var(--radius-none);
+    font-family: var(--font-sans);
+    font-size: var(--type-body-compact-01-size);
+    color: var(--text-on-color);
+    cursor: pointer;
+  }
+  .btn:focus-visible {
+    outline: var(--focus-width) solid var(--int-focus);
+    outline-offset: 1px;
+  }
+  .tag {
+    display: inline-block;
+    padding: 0 var(--sp-03);
+    border-radius: var(--radius-pill);
+    font-size: var(--type-label-01-size);
+    line-height: 1.5;
+  }
+  .num { font-variant-numeric: tabular-nums; text-align: right; font-size: var(--type-body-compact-01-size); }
+  .numblock { width: var(--sp-13); border: 1px solid var(--border-subtle-01); padding: var(--sp-03); }
+  .ramp { display: flex; }
+  .ramp div { height: var(--sp-06); flex: 1; }
+  .bar { background: var(--int-primary); height: var(--sp-03); margin-bottom: var(--sp-02); }
+</style>
+</head>
+<body>
+<header>
+  <h1 class="type-heading-05">Design tokens, Carbon g90</h1>
+  <p class="type-body-01" style="color: var(--text-secondary)">IBM Plex Sans on the g90 surface stack. Generated from design/tokens.json.</p>
+</header>
+
+<section>
+  <h2 class="type-heading-02">Type scale</h2>
+  <p class="type-heading-04">heading-04 The quick brown fox 0123456789</p>
+  <p class="type-heading-03">heading-03 The quick brown fox 0123456789</p>
+  <p class="type-heading-02">heading-02 The quick brown fox 0123456789</p>
+  <p class="type-heading-01">heading-01 The quick brown fox 0123456789</p>
+  <p class="type-body-02">body-02 The quick brown fox jumps over the lazy dog 0123456789</p>
+  <p class="type-body-01">body-01 The quick brown fox jumps over the lazy dog 0123456789</p>
+  <p class="type-body-compact-01">body-compact-01 The quick brown fox jumps over the lazy dog 0123456789</p>
+  <p class="type-label-01" style="color: var(--text-secondary)">label-01 SECONDARY LABEL 0123456789</p>
+  <p class="type-code-01">code-01 const answer = 42; // IBM Plex Mono</p>
+</section>
+
+<section>
+  <h2 class="type-heading-02">Tabular figures</h2>
+  <div class="row">
+    <div class="numblock">
+      <div class="num">1,111,111.11</div>
+      <div class="num">9,999,999.99</div>
+      <div class="num">4,242.42</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2 class="type-heading-02">Surface layers</h2>
+  <div class="stack l0"><span class="type-label-01">bg-base #262626</span>
+    <div class="stack l1"><span class="type-label-01">layer-01 #393939</span>
+      <div class="stack l2"><span class="type-label-01">layer-02 #525252</span>
+        <div class="stack l3"><span class="type-label-01">layer-03 #6f6f6f</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2 class="type-heading-02">Buttons</h2>
+  <div class="row">
+    <button class="btn" style="background: var(--int-primary)">Primary</button>
+    <button class="btn" style="background: var(--int-primary-hover)">Primary hover</button>
+    <button class="btn" style="background: var(--int-primary-active)">Primary active</button>
+    <button class="btn" style="background: var(--int-secondary)">Secondary</button>
+    <button class="btn" style="background: var(--int-secondary-hover)">Secondary hover</button>
+    <button class="btn" style="background: var(--int-danger)">Danger</button>
+    <button class="btn" style="background: var(--int-danger-hover)">Danger hover</button>
+    <button class="btn" style="background: none; color: var(--int-ghost)">Ghost</button>
+    <button class="btn" style="background: var(--int-disabled); color: var(--text-on-color-disabled)">Disabled</button>
+  </div>
+</section>
+
+<section>
+  <h2 class="type-heading-02">Support</h2>
+  <div class="row">
+    <div class="chip"><div class="fill" style="background: var(--support-error)"></div>error</div>
+    <div class="chip"><div class="fill" style="background: var(--support-success)"></div>success</div>
+    <div class="chip"><div class="fill" style="background: var(--support-warning)"></div>warning</div>
+    <div class="chip"><div class="fill" style="background: var(--support-info)"></div>info</div>
+    <div class="chip"><div class="fill" style="background: var(--support-caution)"></div>caution</div>
+    <div class="chip"><div class="fill" style="background: var(--support-notification-background)"></div>notif bg</div>
+  </div>
+</section>
+
+<section>
+  <h2 class="type-heading-02">Tags</h2>
+  <div class="row">
+    <span class="tag" style="background: var(--tag-gray-background); color: var(--tag-gray-text)">gray</span>
+    <span class="tag" style="background: var(--tag-blue-background); color: var(--tag-blue-text)">blue</span>
+    <span class="tag" style="background: var(--tag-green-background); color: var(--tag-green-text)">green</span>
+    <span class="tag" style="background: var(--tag-red-background); color: var(--tag-red-text)">red</span>
+    <span class="tag" style="background: var(--tag-teal-background); color: var(--tag-teal-text)">teal</span>
+    <span class="tag" style="background: var(--tag-purple-background); color: var(--tag-purple-text)">purple</span>
+    <span class="tag" style="border: 1px solid var(--tag-blue-border); color: var(--tag-blue-text); background: none">AI chip outline</span>
+  </div>
+</section>
+
+<section>
+  <h2 class="type-heading-02">Categorical palette (14 groups)</h2>
+  <div class="ramp">
+    <div style="background:#8a3ffc"></div><div style="background:#33b1ff"></div>
+    <div style="background:#007d79"></div><div style="background:#ff7eb6"></div>
+    <div style="background:#fa4d56"></div><div style="background:#fff1f1"></div>
+    <div style="background:#6fdc8c"></div><div style="background:#4589ff"></div>
+    <div style="background:#d02670"></div><div style="background:#d2a106"></div>
+    <div style="background:#08bdba"></div><div style="background:#bae6ff"></div>
+    <div style="background:#ba4e00"></div><div style="background:#d4bbff"></div>
+  </div>
+  <p class="type-label-01" style="color: var(--text-helper); margin-top: var(--sp-02)">Rendered from literal values for review only; runtime consumers read echarts-theme.json and carbon.mplstyle.</p>
+</section>
+
+<section>
+  <h2 class="type-heading-02">Spacing scale</h2>
+  <div class="bar" style="width: var(--sp-01)"></div>
+  <div class="bar" style="width: var(--sp-03)"></div>
+  <div class="bar" style="width: var(--sp-05)"></div>
+  <div class="bar" style="width: var(--sp-07)"></div>
+  <div class="bar" style="width: var(--sp-09)"></div>
+  <div class="bar" style="width: var(--sp-11)"></div>
+  <div class="bar" style="width: var(--sp-13)"></div>
+</section>
+
+<section>
+  <h2 class="type-heading-02">Focus</h2>
+  <div class="row">
+    <button class="btn" style="background: var(--int-primary); outline: var(--focus-width) solid var(--int-focus); outline-offset: 1px">Focused button</button>
+  </div>
+</section>
+</body>
+</html>

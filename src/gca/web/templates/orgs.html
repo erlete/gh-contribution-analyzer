@@ -30,6 +30,23 @@
     </form>
   </div>
 
+  <div class="actions" style="margin-bottom:0.8rem">
+    <form method="post" action="/orgs/{{ org.id }}/toggle-forks">
+      <button type="submit" class="secondary">
+        {{ 'Include forks again' if org.ignore_forks else 'Ignore forks' }}
+      </button>
+    </form>
+    {% if org.ignore_forks %}<span class="pill warn">forks ignored everywhere</span>{% endif %}
+    <form method="post" action="/orgs/{{ org.id }}/toggle-members">
+      <button type="submit" class="secondary">
+        {{ 'Allow external people again' if org.members_only else 'Only org members' }}
+      </button>
+    </form>
+    {% if org.members_only %}
+    <span class="pill warn">members only ({{ member_counts.get(org.id, 0) }} members), external people hidden everywhere</span>
+    {% endif %}
+  </div>
+
   <details>
     <summary class="muted">Replace token</summary>
     <form method="post" action="/orgs/{{ org.id }}/token" class="actions" style="margin-top:0.5rem">
@@ -40,16 +57,51 @@
 
   <details>
     <summary class="muted">Repository filter ({{ org.repo_filter_mode.value }})</summary>
-    <form method="post" action="/orgs/{{ org.id }}/repo-filters" class="stack" style="margin-top:0.5rem">
-      <div class="actions">
+    <form method="post" action="/orgs/{{ org.id }}/repo-filters" style="margin-top:0.5rem;max-width:560px">
+      <div class="actions" style="margin-bottom:0.6rem">
         <label><input type="radio" name="mode" value="all" {{ 'checked' if org.repo_filter_mode.value == 'all' }}> All repos</label>
         <label><input type="radio" name="mode" value="whitelist" {{ 'checked' if org.repo_filter_mode.value == 'whitelist' }}> Only listed</label>
         <label><input type="radio" name="mode" value="blacklist" {{ 'checked' if org.repo_filter_mode.value == 'blacklist' }}> All except listed</label>
       </div>
-      <label class="field">Repository names, one per line
-        <textarea name="names" rows="4">{{ filter_names.get(org.id, []) | join('\n') }}</textarea>
-      </label>
-      <button type="submit" class="secondary">Save filter</button>
+      <div class="list-builder" data-field="names"
+           data-values='{{ filter_names.get(org.id, []) | tojson }}'>
+        <div class="lb-add">
+          <select aria-label="Add repository to the list">
+            {% for name in repo_names.get(org.id, []) %}<option value="{{ name }}">{{ name }}</option>{% endfor %}
+          </select>
+          <button type="button" class="secondary">Add</button>
+        </div>
+        <div class="lb-empty">No repositories listed.</div>
+        <ul class="lb-items"></ul>
+      </div>
+      <div class="actions" style="margin-top:0.6rem">
+        <button type="submit" class="secondary">Save filter</button>
+      </div>
+    </form>
+  </details>
+
+  <details>
+    <summary class="muted">Person filter ({{ org.person_filter_mode.value }})</summary>
+    <form method="post" action="/orgs/{{ org.id }}/person-filters" style="margin-top:0.5rem;max-width:560px">
+      <div class="actions" style="margin-bottom:0.6rem">
+        <label><input type="radio" name="mode" value="all" {{ 'checked' if org.person_filter_mode.value == 'all' }}> Everyone</label>
+        <label><input type="radio" name="mode" value="whitelist" {{ 'checked' if org.person_filter_mode.value == 'whitelist' }}> Only listed</label>
+        <label><input type="radio" name="mode" value="blacklist" {{ 'checked' if org.person_filter_mode.value == 'blacklist' }}> All except listed</label>
+      </div>
+      <div class="list-builder" data-field="person_ids"
+           data-values='{{ person_filter_entries.get(org.id, []) | tojson }}'>
+        <div class="lb-add">
+          <select aria-label="Add person to the list">
+            {% for p in persons %}<option value="{{ p.id }}">{{ p.display_name }}</option>{% endfor %}
+          </select>
+          <button type="button" class="secondary">Add</button>
+        </div>
+        <div class="lb-empty">No people listed.</div>
+        <ul class="lb-items"></ul>
+      </div>
+      <div class="actions" style="margin-top:0.6rem">
+        <button type="submit" class="secondary">Save filter</button>
+      </div>
     </form>
   </details>
 </div>

@@ -33,6 +33,10 @@ class Org(Base):
         Enum(FilterMode, native_enum=False, length=20), default=FilterMode.ALL
     )
     sync_enabled: Mapped[bool] = mapped_column(default=True)
+    # Hard filters: ignore_forks excludes forked repos everywhere,
+    # members_only restricts every surface to persons linked to an org member.
+    ignore_forks: Mapped[bool] = mapped_column(default=False)
+    members_only: Mapped[bool] = mapped_column(default=False)
     sync_status: Mapped[str] = mapped_column(String(20), default="idle")
     sync_error: Mapped[str | None] = mapped_column(Text)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -57,6 +61,21 @@ class OrgCredential(Base):
     rate_snapshot: Mapped[dict | None] = mapped_column(JSONVariant)  # type: ignore[type-arg]
 
     org: Mapped[Org] = relationship(back_populates="credential")
+
+
+class OrgMember(Base):
+    """Membership snapshot, refreshed at sync time while members_only is on."""
+
+    __tablename__ = "org_members"
+    __table_args__ = (UniqueConstraint("org_id", "login_norm"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    org_id: Mapped[int] = mapped_column(
+        ForeignKey("orgs.id", ondelete="CASCADE"), index=True
+    )
+    login: Mapped[str] = mapped_column(String(200))
+    login_norm: Mapped[str] = mapped_column(String(200))
+    node_id: Mapped[str | None] = mapped_column(String(100))
 
 
 class RepoFilter(Base):

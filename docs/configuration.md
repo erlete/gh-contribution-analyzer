@@ -46,10 +46,30 @@ collected into a removable list. With nothing listed and mode `all`, every
 repository is included. Changing filters immediately recomputes each repo's
 inclusion flag.
 
+## Hard filters: forks and org members
+
+Both live on the orgs page, per org, and both are hard: they remove data from
+every surface at once (repos, people, identities, suggestions, stats, report
+selectors and report content).
+
+- **Ignore forks**: forked repositories are excluded like filtered repos.
+  Their history stays in the database and returns the moment the toggle is
+  turned off. People whose only activity was in forks disappear with them.
+- **Only org members**: restricts every surface to persons linked to an org
+  member, by GitHub login or by a git identity committing under that login's
+  GitHub noreply address. Enabling fetches the member list immediately and
+  fails loudly when the token lacks the organization Members read permission;
+  the membership snapshot then refreshes on every sync. External
+  contributors, fork authors and unmatched git identities are hidden while
+  the toggle is on. Note that a member's separate git identities only count
+  as the member once merged (the suggestion engine proposes exactly those
+  merges).
+
 ## Person filters
 
-The same mechanism exists per org for persons (`all`, `whitelist`, `blacklist`),
-managed from the people screen, to exclude bots or scope reports to a team.
+The same list mechanism exists per org for persons (`all`, `whitelist`,
+`blacklist`), managed on the orgs page next to the other per-org settings, to
+exclude bots or scope reports to a team.
 
 ## Identity merging
 
@@ -138,8 +158,10 @@ and report is identical either way.
 The settings screen also holds per-area generation instructions (dashboard,
 person views, repository views, reports). Whatever is written there is appended
 to the AI prompt for that area, for example "highlight review activity" or
-"write in a formal tone". Instructions are part of the cache key: saving new
-ones regenerates affected insights on the next view.
+"write in a formal tone". Saving changed instructions discards every cached AI
+comment of the affected areas, so all of them regenerate with the new guidance
+as their views load. Already generated PDF reports are immutable documents and
+keep their narratives.
 
 Large combined report documents cap AI narrative calls at 40 sections; beyond
 that, sections use the fallback statements so generation time stays bounded.
@@ -162,6 +184,12 @@ Report kinds: `overview` is one document over the whole scope. `person` and
 numbers, a table of contents with page numbers, then one analyzed section per
 person or repository (key numbers, percentile position, activity trend,
 splits, narrative).
+
+On-demand generation is non-blocking: requesting a report queues it
+immediately and the worker renders it in the background. The archive shows
+the live status per report (generating, generated, failed with the error);
+download and email become available once generated. Reports interrupted by a
+worker restart are requeued automatically.
 
 Periodic reports are generated only when a period closes: a daily watcher looks at
 the most recent fully closed period per enabled schedule and a job ledger

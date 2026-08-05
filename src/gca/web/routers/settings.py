@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gca.ai.client import AIClient, AIError
+from gca.ai.insights import invalidate_area
 from gca.db.engine import get_session
 from gca.mail.backend import MailDeliveryError
 from gca.mail.dispatch import send_test
@@ -158,6 +159,7 @@ async def settings_ai_instructions(
 ) -> RedirectResponse:
     form = await request.form()
     store = SettingsStore(session)
+    before = await store.ai_instructions()
     await store.set_ai_instructions(
         {
             area: value
@@ -165,10 +167,15 @@ async def settings_ai_instructions(
             if isinstance(value, str)
         }
     )
+    after = await store.ai_instructions()
+    invalidated = 0
+    for area in INSIGHT_AREAS:
+        if before.get(area, "") != after.get(area, ""):
+            invalidated += await invalidate_area(session, area)
     await session.commit()
     return RedirectResponse(
-        "/settings?msg=AI instructions saved, affected insights regenerate on"
-        " next view",
+        f"/settings?msg=AI instructions saved, {invalidated} cached comments"
+        " discarded; affected areas regenerate as views load",
         status_code=303,
     )
 

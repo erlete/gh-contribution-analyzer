@@ -111,3 +111,31 @@ async def invalidate_view(session: AsyncSession, view: str) -> int:
         sa.delete(Insight).where(Insight.view == view)
     )
     return int(result.rowcount or 0)
+
+
+# View-name shapes per instruction area. Changing an area's instructions
+# already changes the cache key, so stale rows could never be served again;
+# deleting them makes the regeneration explicit and prunes dead cache.
+_AREA_VIEW_PREFIXES = {
+    "dashboard": ("dashboard",),
+    "person": ("person:",),
+    "repo": ("repo:",),
+    "report": ("report:",),
+}
+
+
+async def invalidate_area(session: AsyncSession, area: str) -> int:
+    """Delete every cached insight belonging to an instruction area, so all
+    affected AI comments regenerate as their views load."""
+    deleted = 0
+    for prefix in _AREA_VIEW_PREFIXES.get(area, ()):
+        condition = (
+            Insight.view == prefix
+            if not prefix.endswith(":")
+            else Insight.view.like(prefix + "%")
+        )
+        result: sa.CursorResult[Any] = await session.execute(  # type: ignore[assignment]
+            sa.delete(Insight).where(condition)
+        )
+        deleted += int(result.rowcount or 0)
+    return deleted

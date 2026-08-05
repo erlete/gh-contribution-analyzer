@@ -210,19 +210,22 @@ class GitMirror:
             commits.append(commit)
         return commits
 
-    def backfill_blobs(self, batch_size: int = 4000) -> int:
+    def backfill_blobs(self, branch: str, batch_size: int = 4000) -> int:
         """Bulk-fetch missing blobs before history extraction.
 
         Full-history numstat needs nearly every blob anyway; fetching them in
         large batches replaces thousands of per-blob promisor connections
         (which exhaust connections and time out) with a handful of transfers.
+        Scoped to the branch we ingest: other refs may reference objects the
+        server refuses to serve individually. Best effort: on failure the
+        demand-fetch path still works, just slower.
         """
         result = self._run(
             "rev-list",
             "--objects",
             "--missing=print",
             "--no-object-names",
-            "--all",
+            f"refs/heads/{branch}",
             cwd=self.path,
         )
         missing = [

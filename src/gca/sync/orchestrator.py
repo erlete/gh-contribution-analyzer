@@ -1,6 +1,7 @@
 """Org-level sync orchestration with bounded concurrency and checkpoints."""
 
 import asyncio
+import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -160,9 +161,17 @@ async def sync_org(
             return summary
         token = decrypt_str(credential.token_encrypted)
         org_login = org.login
-        org.sync_status = "running"
-        org.sync_error = None
+        # Atomic claim: exactly one runner (worker schedule, manual request or
+        # CLI) may sync an org at a time.
+        claim: sa.CursorResult[Any] = await session.execute(  # type: ignore[assignment]
+            sa.update(Org)
+            .where(Org.id == org_id, Org.sync_status != "running")
+            .values(sync_status="running", sync_error=None)
+        )
         await session.commit()
+        if not claim.rowcount:
+            summary.errors.append("another sync for this org is already running")
+            return summary
 
     client = client_factory(token)
     try:
@@ -340,7 +349,9 @@ async def _sync_repo(
                 mirror.clone_or_fetch(url, token)
                 tip = mirror.branch_tip(default_branch)
                 if tip and tip != last_oid:
-                    mirror.backfill_blobs()
+                    # Best effort: on failure the demand-fetch path still works.
+                    with contextlib.suppress(GitError):
+                        mirror.backfill_blobs(default_branch)
                     return mirror.log_numstat(default_branch, last_oid)
                 return []
 

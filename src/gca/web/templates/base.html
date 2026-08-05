@@ -19,10 +19,10 @@
   <nav class="main" aria-label="Primary">
     {% set current = request.url.path %}
     <a href="/" class="{{ 'active' if current == '/' }}">Dashboard</a>
-    <a href="/repos" class="{{ 'active' if current.startswith('/repos') }}">Repos</a>
+    <a href="/repos" class="{{ 'active' if current.startswith('/repos') }}">Repositories</a>
     <a href="/people" class="{{ 'active' if current.startswith('/people') }}">People</a>
-    <a href="/manage" class="{{ 'active' if current.startswith('/manage') }}">Identity</a>
-    <a href="/orgs" class="{{ 'active' if current.startswith('/orgs') }}">Orgs</a>
+    <a href="/manage" class="{{ 'active' if current.startswith('/manage') }}">Identities</a>
+    <a href="/orgs" class="{{ 'active' if current.startswith('/orgs') }}">Organizations</a>
     <a href="/reports" class="{{ 'active' if current.startswith('/reports') }}">Reports</a>
     <a href="/operations" class="{{ 'active' if current.startswith('/operations') }}">Operations</a>
     <a href="/settings" class="{{ 'active' if current.startswith('/settings') }}">Settings</a>

@@ -25,6 +25,7 @@ dependencies = [
 [project.scripts]
 gca = "gca.cli:main"
 gca-worker = "gca.worker:main"
+gca-migrate = "gca.db.migrate:main"
 
 [dependency-groups]
 dev = [

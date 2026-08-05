@@ -18,7 +18,7 @@
 </div>
 
 {% if me %}
-<div class="cards">
+<div class="cards count-8">
   {{ c.kpi(me.commits | int_fmt, "Commits") }}
   {{ c.kpi(me.additions | int_fmt, "Lines added") }}
   {{ c.kpi(me.deletions | int_fmt, "Lines deleted") }}

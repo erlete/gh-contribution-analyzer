@@ -206,6 +206,44 @@
     gap: var(--sp-03);
     margin-bottom: var(--sp-05);
   }
+  /* Count-aware card grids: auto-fit orphans stragglers (9 cards render
+     8+1), so templates declare their card count and every row comes out
+     full and near-equal at every viewport. Span tricks on a shared track
+     count produce the uneven splits (5+4, 4+3, 3+2+2). */
+  .cards.count-9 > *,
+  .cards.count-8 > *,
+  .cards.count-7 > * { min-width: 0; }
+  .cards.count-9 { grid-template-columns: repeat(20, minmax(0, 1fr)); }
+  .cards.count-9 > * { grid-column: span 4; }
+  .cards.count-9 > :nth-child(n+6) { grid-column: span 5; }
+  .cards.count-8 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cards.count-7 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .cards.count-7 > * { grid-column: span 3; }
+  .cards.count-7 > :nth-child(n+5) { grid-column: span 4; }
+  @media (max-width: 1199px) {
+    .cards.count-9 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cards.count-9 > *,
+    .cards.count-9 > :nth-child(n+6) { grid-column: auto; }
+  }
+  @media (max-width: 1023px) {
+    .cards.count-7 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .cards.count-7 > * { grid-column: span 2; }
+    .cards.count-7 > :nth-child(n+4) { grid-column: span 3; }
+  }
+  @media (max-width: 719px) {
+    .cards.count-8 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 640px) {
+    .cards.count-9,
+    .cards.count-7 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cards.count-9 > *,
+    .cards.count-9 > :nth-child(n+6),
+    .cards.count-7 > *,
+    .cards.count-7 > :nth-child(n+4),
+    .cards.count-7 > :nth-child(n+5) { grid-column: auto; }
+    .cards.count-9 > :first-child,
+    .cards.count-7 > :first-child { grid-column: 1 / -1; }
+  }
   .card {
     background: var(--bg-layer-01);
     padding: var(--sp-05);

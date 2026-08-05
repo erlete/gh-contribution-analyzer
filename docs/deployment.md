@@ -61,12 +61,14 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 |---|---|
 | `CADDY_DOMAIN` | Domain Caddy serves. Keep `localhost` for local production-mode runs; set a real domain for automatic HTTPS. |
 | `BASIC_AUTH_USER` | Basic auth username. Default `root`. |
-| `BASIC_AUTH_HASH` | bcrypt hash of the basic auth password. Required in production. |
+| `BASIC_AUTH_HASH` | bcrypt hash of the basic auth password, with every `$` doubled as `$$`. Required in production. |
 
-Generate `BASIC_AUTH_HASH` exactly as documented in `.env.example`:
+Generate `BASIC_AUTH_HASH` with the command below. The `sed` step doubles the
+dollar signs: Docker Compose re-interpolates `$` sequences in `.env` values, so
+an unescaped bcrypt hash gets silently mangled and every login fails.
 
 ```sh
-docker run --rm caddy:2 caddy hash-password --plaintext 'your-password'
+docker run --rm caddy:2 caddy hash-password --plaintext 'your-password' | sed 's/\$/\$\$/g'
 ```
 
 ### Mail seed: Microsoft Graph (production)

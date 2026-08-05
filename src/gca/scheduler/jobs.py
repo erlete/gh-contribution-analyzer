@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -77,7 +77,10 @@ async def check_sync_requests(factory: SessionFactory) -> None:
         requests = await store.get(SYNC_REQUESTS_KEY) or {}
         if not requests:
             return
-        await store.set(SYNC_REQUESTS_KEY, {})
+        # Re-read before clearing so requests filed in between are kept.
+        latest = await store.get(SYNC_REQUESTS_KEY) or {}
+        remaining = {k: v for k, v in latest.items() if k not in requests}
+        await store.set(SYNC_REQUESTS_KEY, remaining)
         await session.commit()
         pending = [int(key) for key in requests if key.isdigit()]
     for org_id in pending:
@@ -90,8 +93,23 @@ async def check_sync_requests(factory: SessionFactory) -> None:
 
 
 async def _claim(factory: SessionFactory, job: str, period: str) -> bool:
+    """Claim a (job, period) slot. Failed or crashed claims stay retryable:
+    only status done blocks a re-run."""
     async with factory() as session:
-        session.add(JobLedger(job_key=job, period_key=period))
+        existing = (
+            await session.execute(
+                sa.select(JobLedger).where(
+                    JobLedger.job_key == job, JobLedger.period_key == period
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            if existing.status == "done":
+                return False
+            existing.status = "running"
+            await session.commit()
+            return True
+        session.add(JobLedger(job_key=job, period_key=period, status="running"))
         try:
             await session.commit()
             return True
@@ -100,11 +118,21 @@ async def _claim(factory: SessionFactory, job: str, period: str) -> bool:
             return False
 
 
+async def _finish(factory: SessionFactory, job: str, period: str, status: str) -> None:
+    async with factory() as session:
+        await session.execute(
+            sa.update(JobLedger)
+            .where(JobLedger.job_key == job, JobLedger.period_key == period)
+            .values(status=status)
+        )
+        await session.commit()
+
+
 async def period_watcher(factory: SessionFactory, today: date | None = None) -> None:
     """Generate and email reports for periods that just closed. Never
     retroactive: only the most recent closed period per schedule is
     considered, and the ledger makes each one fire exactly once."""
-    today = today or date.today()
+    today = today or datetime.now(UTC).date()
     async with factory() as session:
         schedules = (
             (
@@ -121,31 +149,38 @@ async def period_watcher(factory: SessionFactory, today: date | None = None) -> 
     for kind, report_kind, org_scope in schedule_data:
         start, end = previous_period(kind, today)
         job = f"report:{kind}:{report_kind}"
-        if not await _claim(factory, job, period_key(kind, start)):
+        period = period_key(kind, start)
+        if not await _claim(factory, job, period):
             continue
-        log.info("generating %s reports for %s", report_kind, period_key(kind, start))
-        async with factory() as session:
-            reports = await generate_reports(
-                session,
-                kind=report_kind,
-                org_ids=org_scope,
-                start=start,
-                end=end,
-                period_kind=kind,
-                period_label=period_label(kind, start),
-            )
-            recipients = [
-                r.email
-                for r in (
-                    await session.execute(
-                        sa.select(Recipient).where(Recipient.active.is_(True))
-                    )
-                ).scalars()
-            ]
-            for report in reports:
-                if recipients:
-                    await send_report(session, report, recipients)
-            await session.commit()
+        log.info("generating %s reports for %s", report_kind, period)
+        try:
+            async with factory() as session:
+                reports = await generate_reports(
+                    session,
+                    kind=report_kind,
+                    org_ids=org_scope,
+                    start=start,
+                    end=end,
+                    period_kind=kind,
+                    period_label=period_label(kind, start),
+                )
+                recipients = [
+                    r.email
+                    for r in (
+                        await session.execute(
+                            sa.select(Recipient).where(Recipient.active.is_(True))
+                        )
+                    ).scalars()
+                ]
+                for report in reports:
+                    if recipients:
+                        await send_report(session, report, recipients)
+                await session.commit()
+        except Exception as exc:
+            log.error("report generation failed for %s: %s", period, exc)
+            await _finish(factory, job, period, "failed")
+        else:
+            await _finish(factory, job, period, "done")
 
 
 async def generate_suggestions_job(factory: SessionFactory) -> None:
@@ -172,7 +207,9 @@ async def maintenance(factory: SessionFactory) -> None:
             row.login.lower()
             for row in (await session.execute(sa.select(Org.login))).all()
         }
+    repo_dirs: dict[str, set[str]] = {}
     for name, login in rows:
+        repo_dirs.setdefault(login.lower(), set()).add(f"{name.lower()}.git")
         mirror = GitMirror(clone_root, login, name)
         if mirror.exists():
             try:
@@ -181,6 +218,14 @@ async def maintenance(factory: SessionFactory) -> None:
                 log.warning("repack failed for %s/%s: %s", login, name, exc)
     if clone_root.exists():
         for child in clone_root.iterdir():
-            if child.is_dir() and child.name.lower() not in valid_logins:
+            if not child.is_dir():
+                continue
+            if child.name.lower() not in valid_logins:
                 log.info("removing orphan clone dir %s", child)
                 rmtree_robust(child)
+                continue
+            expected = repo_dirs.get(child.name.lower(), set())
+            for repo_dir in child.iterdir():
+                if repo_dir.is_dir() and repo_dir.name.lower() not in expected:
+                    log.info("removing orphan repo clone %s", repo_dir)
+                    rmtree_robust(repo_dir)

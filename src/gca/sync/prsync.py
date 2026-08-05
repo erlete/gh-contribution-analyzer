@@ -29,7 +29,10 @@ async def upsert_pull_requests(
         author_identity_id: int | None = None
         if info.author_login:
             identity = await get_or_create_github_identity(
-                session, login=info.author_login, node_id=info.author_node_id
+                session,
+                login=info.author_login,
+                node_id=info.author_node_id,
+                commit_on_create=True,
             )
             author_identity_id = identity.id
             stats.affected_person_ids.add(identity.person_id)
@@ -76,12 +79,15 @@ async def upsert_pull_requests(
             if row.node_id
         }
         for review in info.reviews:
-            if review.node_id in known_review_ids:
+            if not review.node_id or review.node_id in known_review_ids:
                 continue
             reviewer_identity_id: int | None = None
             if review.login:
                 reviewer = await get_or_create_github_identity(
-                    session, login=review.login, node_id=review.author_node_id
+                    session,
+                    login=review.login,
+                    node_id=review.author_node_id,
+                    commit_on_create=True,
                 )
                 reviewer_identity_id = reviewer.id
                 stats.affected_person_ids.add(reviewer.person_id)

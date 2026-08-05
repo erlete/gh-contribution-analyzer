@@ -7,6 +7,7 @@ written to disk. Known parsing limitation, documented: file paths containing
 """
 
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -14,8 +15,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-_RECORD_SEP = "\x01"
+# NUL record separator: git guarantees it cannot appear in commit messages.
+_RECORD_SEP = "\x00"
 _FIELD_SEP = "\x02"
+_NAME_RE = re.compile(r"[A-Za-z0-9._-]+")
 
 
 class GitError(RuntimeError):
@@ -82,6 +85,8 @@ class GitMirror:
         repo_name: str,
         token: str | None = None,
     ) -> None:
+        if not _NAME_RE.fullmatch(org_login) or not _NAME_RE.fullmatch(repo_name):
+            raise GitError(f"invalid org or repo name: {org_login}/{repo_name}")
         self.path = Path(base_dir) / org_login.lower() / f"{repo_name.lower()}.git"
         self._token = token
 
@@ -148,9 +153,8 @@ class GitMirror:
         """Commits reachable from `branch`, oldest first, with per-file stats."""
         target = f"refs/heads/{branch}"
         spec = f"{since_oid}..{target}" if since_oid else target
-        pretty = (
-            f"--pretty=format:{_RECORD_SEP}%H{_FIELD_SEP}%P{_FIELD_SEP}%an"
-            f"{_FIELD_SEP}%ae{_FIELD_SEP}%aI{_FIELD_SEP}%cI{_FIELD_SEP}%s"
+        pretty = "--pretty=format:%x00%H{f}%P{f}%an{f}%ae{f}%aI{f}%cI{f}%s".replace(
+            "{f}", "%x02"
         )
         result = self._run(
             "log",
@@ -159,6 +163,7 @@ class GitMirror:
             "-M",
             pretty,
             spec,
+            "--",
             cwd=self.path,
         )
         return self._parse_log(result.stdout)
@@ -171,7 +176,7 @@ class GitMirror:
             if not record:
                 continue
             lines = record.split("\n")
-            header = lines[0].split(_FIELD_SEP)
+            header = lines[0].split(_FIELD_SEP, 6)
             if len(header) != 7:
                 continue
             oid, parents, name, email, authored, committed, subject = header

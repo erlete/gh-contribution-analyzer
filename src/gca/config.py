@@ -15,7 +15,6 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://gca:change-me@localhost:5432/gca"
     app_secret_key: str = ""
-    app_base_url: str = "http://localhost"
     tz: str = "UTC"
 
     clone_dir: str = "/data/clones"

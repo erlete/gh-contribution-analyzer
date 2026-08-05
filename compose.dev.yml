@@ -1,5 +1,7 @@
 # Development overrides: local build, every service port published, Mailpit
-# for email capture, live reload. Run with:
+# for email capture, live reload. The APP_SECRET_KEY and BASIC_AUTH_HASH
+# defaults below are public development values: NEVER reuse them in any
+# production .env. Run with:
 #   docker compose -f compose.yml -f compose.dev.yml up --build
 
 services:

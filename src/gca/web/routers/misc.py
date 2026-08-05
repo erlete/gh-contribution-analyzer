@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from markupsafe import escape
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gca.ai.insights import insight_for
@@ -30,9 +31,17 @@ async def set_scope(
         value = ""
     else:
         value = ",".join(str(i) for i in selected)
-    target = next if next.startswith("/") else "/"
+    target = (
+        next if next.startswith("/") and not next.startswith(("//", "/\\")) else "/"
+    )
     response = RedirectResponse(target, status_code=303)
-    response.set_cookie(SCOPE_COOKIE, value, max_age=365 * 24 * 3600, httponly=True)
+    response.set_cookie(
+        SCOPE_COOKIE,
+        value,
+        max_age=365 * 24 * 3600,
+        httponly=True,
+        samesite="strict",
+    )
     return response
 
 
@@ -124,14 +133,5 @@ async def insight_partial(
         return HTMLResponse("")
     return HTMLResponse(
         '<div class="insight"><div class="tag">Insight</div>'
-        f"<div>{_escape(text)}</div></div>"
-    )
-
-
-def _escape(value: str) -> str:
-    return (
-        value.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
+        f"<div>{escape(text)}</div></div>"
     )

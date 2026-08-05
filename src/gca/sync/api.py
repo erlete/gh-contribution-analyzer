@@ -142,7 +142,7 @@ query($owner: String!, $name: String!, $cursor: String) {
         deletions
         changedFiles
         author { login ... on User { id } }
-        reviews(first: 50) {
+        reviews(first: 100) {
           nodes {
             id
             state
@@ -426,7 +426,11 @@ class GitHubClient:
                 detail_resp = await self._request(
                     "GET", f"/repos/{owner}/{repo}/pulls/{item['number']}"
                 )
-                detail = detail_resp.json() if detail_resp.status_code == 200 else {}
+                if detail_resp.status_code != 200:
+                    raise GitHubError(
+                        f"pr detail failed ({detail_resp.status_code}) for #{item['number']}"
+                    )
+                detail = detail_resp.json()
                 reviews_resp = await self._request(
                     "GET",
                     f"/repos/{owner}/{repo}/pulls/{item['number']}/reviews"

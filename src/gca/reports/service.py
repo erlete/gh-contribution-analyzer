@@ -1,5 +1,6 @@
 """Report generation service."""
 
+import asyncio
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from gca.metrics.churn import DEFAULT_CHURN_WINDOW_DAYS
 from gca.models import Org, Person, Repo, Report
 from gca.reports.builder import render_pdf, trend_chart_data_uri
 from gca.services import stats
+from gca.services.stats import PersonStat
 from gca.timeutil import utcnow
 
 REPORT_KINDS = ("overview", "person", "repo")
@@ -114,7 +116,8 @@ async def generate_reports(
             },
         )
         title = f"Contribution overview, {label}"
-        pdf = render_pdf(
+        pdf = await asyncio.to_thread(
+            render_pdf,
             "overview.html",
             {
                 **common,
@@ -122,7 +125,11 @@ async def generate_reports(
                 "totals": totals,
                 "people": people,
                 "repos": repos,
-                "chart": trend_chart_data_uri(series) if series else None,
+                "chart": (
+                    await asyncio.to_thread(trend_chart_data_uri, series)
+                    if series
+                    else None
+                ),
                 "narrative": narrative,
             },
         )
@@ -146,11 +153,18 @@ async def generate_reports(
         board = await stats.person_leaderboard(
             session, orgs=org_ids, start=start, end=end, repo_ids=repo_ids
         )
-        subjects = (
-            [s for s in board if s.person_id in set(person_ids)]
-            if person_ids
-            else board
-        )
+        if person_ids:
+            wanted = set(person_ids)
+            subjects = [s for s in board if s.person_id in wanted]
+            missing = wanted - {s.person_id for s in subjects}
+            for pid in sorted(missing):
+                person_row = await session.get(Person, pid)
+                if person_row is not None:
+                    subjects.append(
+                        PersonStat(person_id=pid, display_name=person_row.display_name)
+                    )
+        else:
+            subjects = board
         for me in subjects:
             person = await session.get_one(Person, me.person_id)
             split = await stats.person_repo_split(
@@ -185,7 +199,8 @@ async def generate_reports(
                 ("prs_merged", "PRs merged", f"{me.prs_merged:,}"),
                 ("reviews", "Reviews", f"{me.reviews:,}"),
             ]
-            pdf = render_pdf(
+            pdf = await asyncio.to_thread(
+                render_pdf,
                 "person.html",
                 {
                     **common,
@@ -194,7 +209,11 @@ async def generate_reports(
                     "population": len(board),
                     "metric_rows": metric_rows,
                     "split": split,
-                    "chart": trend_chart_data_uri(series) if series else None,
+                    "chart": (
+                        await asyncio.to_thread(trend_chart_data_uri, series)
+                        if series
+                        else None
+                    ),
                     "narrative": narrative,
                 },
             )
@@ -246,14 +265,19 @@ async def generate_reports(
             },
         )
         title = f"{repo_stat.org_login}/{repo.name}, {label}"
-        pdf = render_pdf(
+        pdf = await asyncio.to_thread(
+            render_pdf,
             "repo.html",
             {
                 **common,
                 "title": title,
                 "totals": totals,
                 "contributors": contributors,
-                "chart": trend_chart_data_uri(series) if series else None,
+                "chart": (
+                    await asyncio.to_thread(trend_chart_data_uri, series)
+                    if series
+                    else None
+                ),
                 "narrative": narrative,
             },
         )

@@ -224,7 +224,10 @@ def add_percentiles(stats: list[PersonStat]) -> None:
         for stat in stats:
             value = getattr(stat, metric)
             below = sum(1 for v in values if v < value)
-            stat.percentiles[metric] = below / (n - 1) if n > 1 else 1.0
+            if n > 1:
+                stat.percentiles[metric] = below / (n - 1)
+            else:
+                stat.percentiles[metric] = 1.0 if value > 0 else 0.0
 
 
 async def totals(

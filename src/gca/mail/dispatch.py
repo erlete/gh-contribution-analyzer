@@ -10,6 +10,7 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from gca.config import get_settings
 from gca.mail.backend import Attachment, MailBackend, MailDeliveryError, OutgoingMail
 from gca.mail.graph import GraphBackend
 from gca.mail.smtp import SmtpBackend
@@ -76,7 +77,7 @@ async def send_report(
         return await _fail(_NOT_CONFIGURED)
     if not recipients:
         return await _fail("report has no active recipients")
-    pdf_path = Path(report.pdf_path)
+    pdf_path = Path(get_settings().reports_dir) / report.pdf_path
     try:
         content = pdf_path.read_bytes()
     except OSError as exc:

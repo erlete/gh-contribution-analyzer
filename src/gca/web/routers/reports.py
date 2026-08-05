@@ -1,6 +1,6 @@
 """Report archive, on-demand generation and periodic schedule toggles."""
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -95,7 +95,9 @@ async def reports_generate(
     ]
     try:
         start = date.fromisoformat(date_from) if date_from else date(2008, 1, 1)
-        end = date.fromisoformat(date_to) if date_to else date.today()
+        end = (date.fromisoformat(date_to) if date_to else date.today()) + timedelta(
+            days=1
+        )
     except ValueError:
         return RedirectResponse("/reports?msg=Invalid dates", status_code=303)
     try:

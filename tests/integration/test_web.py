@@ -83,6 +83,27 @@ async def test_setup_gate_redirects(client: httpx2.AsyncClient) -> None:
     assert "First things first" in response.text
 
 
+async def test_cross_origin_posts_rejected(client: httpx2.AsyncClient) -> None:
+    setup = await client.post(
+        "/setup",
+        data={"login": "acme", "token": "github_pat_x"},
+        headers={"Origin": "http://test"},
+    )
+    assert setup.status_code == 303
+    response = await client.post(
+        "/settings/recipients/add",
+        data={"email": "evil@example.com"},
+        headers={"Origin": "https://evil.example"},
+    )
+    assert response.status_code == 403
+    same_origin = await client.post(
+        "/settings/recipients/add",
+        data={"email": "fine@example.com"},
+        headers={"Origin": "http://test"},
+    )
+    assert same_origin.status_code == 303
+
+
 async def test_setup_rejects_user_accounts(client: httpx2.AsyncClient) -> None:
     response = await client.post(
         "/setup", data={"login": "not-an-org", "token": "github_pat_x"}

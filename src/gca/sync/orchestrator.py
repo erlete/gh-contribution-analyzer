@@ -52,6 +52,7 @@ class SyncSummary:
     new_prs: int = 0
     errors: list[str] = field(default_factory=list)
     degraded: bool = False
+    affected_person_ids: set[int] = field(default_factory=set)
 
 
 def _utcnow() -> datetime:
@@ -80,18 +81,27 @@ async def _discover(
             )
         ).scalars()
     }
-    existing = {
-        repo.name.lower(): repo
-        for repo in (
-            await session.execute(sa.select(Repo).where(Repo.org_id == org.id))
-        ).scalars()
-    }
+    rows = list(
+        (await session.execute(sa.select(Repo).where(Repo.org_id == org.id))).scalars()
+    )
+    by_name = {repo.name.lower(): repo for repo in rows}
+    by_node = {repo.node_id: repo for repo in rows if repo.node_id}
     included_ids: list[int] = []
+    seen_ids: set[int] = set()
     for info in repo_infos:
-        repo = existing.get(info.name.lower())
+        repo = by_node.get(info.node_id) if info.node_id else None
+        if repo is None:
+            repo = by_name.get(info.name.lower())
         if repo is None:
             repo = Repo(org_id=org.id, name=info.name)
             session.add(repo)
+        elif repo.name.lower() != info.name.lower():
+            # Renamed on GitHub: keep the row (history stays), restart the
+            # clone under the new name. The old clone dir is orphan-collected
+            # by worker maintenance.
+            repo.name = info.name
+            repo.clone_status = CloneStatus.PENDING
+            repo.last_fetched_at = None
         repo.node_id = info.node_id or repo.node_id
         repo.default_branch = info.default_branch
         repo.is_private = info.is_private
@@ -99,8 +109,15 @@ async def _discover(
         repo.is_fork = info.is_fork
         repo.included = _repo_included(info.name, org.repo_filter_mode, filter_names)
         await session.flush()
+        seen_ids.add(repo.id)
         if repo.included:
             included_ids.append(repo.id)
+    # Repos gone from GitHub (deleted or access revoked) stop syncing but keep
+    # their history.
+    for repo in rows:
+        if repo.id not in seen_ids and repo.included:
+            repo.included = False
+    await session.flush()
     return included_ids
 
 
@@ -184,21 +201,30 @@ async def sync_org(
                         repo_url_template=repo_url_template,
                         summary=summary,
                     )
-                except RateLimitError:
+                except RateLimitError, AuthError:
                     stop.set()
                     raise
 
         results = await asyncio.gather(
             *(_one(rid) for rid in included_ids), return_exceptions=True
         )
-        rate_error: RateLimitError | None = None
+        fatal: RateLimitError | AuthError | None = None
         for result in results:
-            if isinstance(result, RateLimitError):
-                rate_error = result
+            if isinstance(result, RateLimitError | AuthError):
+                fatal = result
             elif isinstance(result, BaseException):
                 summary.errors.append(str(result)[:500])
-        if rate_error is not None:
-            raise rate_error
+
+        # PR and review rollups rebuild once, after every repo task is done,
+        # so concurrent recomputes can never race each other or the ingests.
+        if summary.affected_person_ids:
+            async with session_factory() as session:
+                await recompute_for_persons(
+                    session, sorted(summary.affected_person_ids)
+                )
+                await session.commit()
+        if fatal is not None:
+            raise fatal
 
         async with session_factory() as session:
             org = await session.get_one(
@@ -244,6 +270,33 @@ async def _mark_degraded(
             await session.commit()
 
 
+async def _record_repo_error(
+    session_factory: SessionFactory,
+    org_id: int,
+    repo_id: int,
+    message: str,
+    *,
+    clone_failure: bool,
+) -> None:
+    """Persist a repo failure in a fresh session (the work session is dead)."""
+    async with session_factory() as session:
+        session.add(
+            SyncRun(
+                org_id=org_id,
+                repo_id=repo_id,
+                kind="repo",
+                status="error",
+                error=message[:2000],
+                finished_at=_utcnow(),
+            )
+        )
+        repo = await session.get(Repo, repo_id)
+        if repo is not None and clone_failure:
+            repo.clone_status = CloneStatus.ERROR
+            repo.clone_error = message[:2000]
+        await session.commit()
+
+
 async def _sync_repo(
     session_factory: SessionFactory,
     client: GitHubClient,
@@ -256,13 +309,11 @@ async def _sync_repo(
     repo_url_template: str,
     summary: SyncSummary,
 ) -> None:
-    async with session_factory() as session:
-        repo = await session.get_one(Repo, repo_id)
-        run = SyncRun(org_id=org_id, repo_id=repo_id, kind="repo")
-        session.add(run)
-        mirror = GitMirror(clone_dir, org_login, repo.name, token=token)
-        url = repo_url_template.format(org=org_login, name=repo.name)
-        try:
+    try:
+        async with session_factory() as session:
+            repo = await session.get_one(Repo, repo_id)
+            mirror = GitMirror(clone_dir, org_login, repo.name, token=token)
+            url = repo_url_template.format(org=org_login, name=repo.name)
             repo.clone_status = (
                 CloneStatus.CLONING if not mirror.exists() else CloneStatus.READY
             )
@@ -285,35 +336,46 @@ async def _sync_repo(
                 org_login, repo.name, ensure_utc(repo.pr_synced_at)
             )
             pr_stats = await upsert_pull_requests(session, repo, prs)
-            if pr_stats.affected_person_ids:
-                await recompute_for_persons(
-                    session, sorted(pr_stats.affected_person_ids)
-                )
 
-            run.status = "success"
-            run.stats = {
-                "new_commits": new_commits,
-                "new_prs": pr_stats.new_prs,
-                "updated_prs": pr_stats.updated_prs,
-                "new_reviews": pr_stats.new_reviews,
-            }
+            session.add(
+                SyncRun(
+                    org_id=org_id,
+                    repo_id=repo_id,
+                    kind="repo",
+                    status="success",
+                    finished_at=_utcnow(),
+                    stats={
+                        "new_commits": new_commits,
+                        "new_prs": pr_stats.new_prs,
+                        "updated_prs": pr_stats.updated_prs,
+                        "new_reviews": pr_stats.new_reviews,
+                    },
+                )
+            )
+            await session.commit()
             summary.repos_processed += 1
             summary.new_commits += new_commits
             summary.new_prs += pr_stats.new_prs
-        except RateLimitError:
-            run.status = "error"
-            run.error = "rate limit exhausted"
-            repo.clone_error = None
-            raise
-        except Exception as exc:
-            run.status = "error"
-            run.error = str(exc)[:2000]
-            repo.clone_status = CloneStatus.ERROR
-            repo.clone_error = str(exc)[:2000]
-            raise
-        finally:
-            run.finished_at = _utcnow()
-            await session.commit()
+            summary.affected_person_ids.update(pr_stats.affected_person_ids)
+    except RateLimitError:
+        await _record_repo_error(
+            session_factory,
+            org_id,
+            repo_id,
+            "rate limit exhausted",
+            clone_failure=False,
+        )
+        raise
+    except AuthError as exc:
+        await _record_repo_error(
+            session_factory, org_id, repo_id, str(exc), clone_failure=False
+        )
+        raise
+    except Exception as exc:
+        await _record_repo_error(
+            session_factory, org_id, repo_id, str(exc), clone_failure=True
+        )
+        raise
 
 
 async def remove_org(

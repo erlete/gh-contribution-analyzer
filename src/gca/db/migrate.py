@@ -4,6 +4,8 @@ Serialized across app and worker containers with a Postgres advisory lock so
 concurrent startups cannot race Alembic.
 """
 
+from pathlib import Path
+
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
@@ -15,7 +17,10 @@ _LOCK_KEY = 743_002_001
 
 def run_migrations(database_url: str | None = None) -> None:
     url = database_url or get_settings().database_url
-    cfg = Config("alembic.ini")
+    ini = Path("alembic.ini")
+    if not ini.exists():
+        ini = Path("/app/alembic.ini")
+    cfg = Config(str(ini))
     cfg.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
 
     if url.startswith("postgresql"):

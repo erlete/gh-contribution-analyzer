@@ -65,7 +65,9 @@ def merge_deltas(deltas: list[RollupDelta]) -> list[RollupDelta]:
     return list(combined.values())
 
 
-async def apply_deltas(session: AsyncSession, deltas: list[RollupDelta]) -> None:
+async def apply_deltas(
+    session: AsyncSession, deltas: list[RollupDelta], *, additive: bool = True
+) -> None:
     deltas = merge_deltas(deltas)
     if not deltas:
         return
@@ -76,11 +78,15 @@ async def apply_deltas(session: AsyncSession, deltas: list[RollupDelta]) -> None
         from sqlalchemy.dialects.sqlite import insert  # type: ignore[assignment]
     table = PersonRepoDayStats.__table__
     stmt = insert(PersonRepoDayStats).values([asdict(d) for d in deltas])
-    additions = {
-        name: getattr(table.c, name) + getattr(stmt.excluded, name) for name in _NUMERIC
-    }
+    if additive:
+        updates = {
+            name: getattr(table.c, name) + getattr(stmt.excluded, name)
+            for name in _NUMERIC
+        }
+    else:
+        updates = {name: getattr(stmt.excluded, name) for name in _NUMERIC}
     stmt = stmt.on_conflict_do_update(
-        index_elements=["person_id", "repo_id", "day"], set_=additions
+        index_elements=["person_id", "repo_id", "day"], set_=updates
     )
     await session.execute(stmt)
 
@@ -194,7 +200,7 @@ async def recompute_for_persons(session: AsyncSession, person_ids: list[int]) ->
             )
         )
 
-    await apply_deltas(session, deltas)
+    await apply_deltas(session, deltas, additive=False)
 
 
 __all__ = [

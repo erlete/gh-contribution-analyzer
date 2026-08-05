@@ -45,7 +45,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 20s
+      start_period: 60s
 
   worker:
     image: ghcr.io/erlete/gh-contribution-analyzer:${GCA_TAG:-latest}
@@ -73,7 +73,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gca}
       POSTGRES_DB: ${POSTGRES_DB:-gca}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-gca} -d $${POSTGRES_DB:-gca}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER:-gca} -d $${POSTGRES_DB:-gca}"]
       interval: 5s
       timeout: 3s
       retries: 10

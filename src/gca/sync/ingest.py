@@ -60,7 +60,10 @@ async def ingest_repo(
         identity = identity_cache.get(cache_key)
         if identity is None:
             identity = await get_or_create_git_identity(
-                session, name=raw.author_name, email=raw.author_email
+                session,
+                name=raw.author_name,
+                email=raw.author_email,
+                commit_on_create=True,
             )
             identity_cache[cache_key] = identity
 

@@ -104,28 +104,8 @@
   </table>
 </div>
 
-{% for org in scope.orgs %}
-<div class="panel">
-  <h2>Person filter, {{ org.login }}</h2>
-  <form method="post" action="/manage/filters/{{ org.id }}">
-    <div class="actions" style="margin-bottom:0.6rem">
-      <label><input type="radio" name="mode" value="all" {{ 'checked' if org.person_filter_mode.value == 'all' }}> Everyone</label>
-      <label><input type="radio" name="mode" value="whitelist" {{ 'checked' if org.person_filter_mode.value == 'whitelist' }}> Only listed</label>
-      <label><input type="radio" name="mode" value="blacklist" {{ 'checked' if org.person_filter_mode.value == 'blacklist' }}> All except listed</label>
-    </div>
-    <div class="list-builder" data-field="person_ids"
-         data-values='{{ filter_entries.get(org.id, []) | tojson }}'>
-      <div class="lb-add">
-        <select aria-label="Add person to the list">
-          {% for p in persons %}<option value="{{ p.id }}">{{ p.display_name }}</option>{% endfor %}
-        </select>
-        <button type="button" class="secondary">Add</button>
-      </div>
-      <div class="lb-empty">No people listed.</div>
-      <ul class="lb-items"></ul>
-    </div>
-    <div class="actions" style="margin-top:0.6rem"><button type="submit">Save filter</button></div>
-  </form>
-</div>
-{% endfor %}
+<p class="muted small">
+  Per-org person filters, repository filters, fork and member rules live on
+  the <a href="/orgs">Orgs</a> page.
+</p>
 {% endblock %}

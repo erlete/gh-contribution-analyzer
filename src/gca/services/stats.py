@@ -22,6 +22,7 @@ from gca.models import (
     PersonRepoDayStats,
     Repo,
 )
+from gca.services import membership
 
 METRIC_FIELDS = (
     "commits",
@@ -103,29 +104,37 @@ class DayPoint:
     significance: float
 
 
+_PersonFilters = dict[int, tuple[FilterMode, set[int], set[int] | None]]
+
+
 async def _person_filter_map(
     session: AsyncSession, org_ids: list[int]
-) -> dict[int, tuple[FilterMode, set[int]]]:
-    org_query = sa.select(Org.id, Org.person_filter_mode)
+) -> _PersonFilters:
+    """Per-org person constraints: (filter mode, listed ids, member ids).
+    The member set is None unless the org has members_only enabled."""
+    org_query = sa.select(Org.id, Org.person_filter_mode, Org.members_only)
     if org_ids:
         org_query = org_query.where(Org.id.in_(org_ids))
-    modes = {
-        row.id: row.person_filter_mode
-        for row in (await session.execute(org_query)).all()
-    }
+    org_rows = (await session.execute(org_query)).all()
+    modes = {row.id: row.person_filter_mode for row in org_rows}
+    restricted = [row.id for row in org_rows if row.members_only]
+    member_sets = await membership.member_person_sets(session, restricted)
     filter_query = sa.select(PersonFilter.org_id, PersonFilter.person_id)
     if org_ids:
         filter_query = filter_query.where(PersonFilter.org_id.in_(org_ids))
     listed: dict[int, set[int]] = {}
     for row in (await session.execute(filter_query)).all():
         listed.setdefault(row.org_id, set()).add(row.person_id)
-    return {org_id: (mode, listed.get(org_id, set())) for org_id, mode in modes.items()}
+    return {
+        org_id: (mode, listed.get(org_id, set()), member_sets.get(org_id))
+        for org_id, mode in modes.items()
+    }
 
 
-def _person_allowed(
-    filters: dict[int, tuple[FilterMode, set[int]]], org_id: int, person_id: int
-) -> bool:
-    mode, listed = filters.get(org_id, (FilterMode.ALL, set()))
+def _person_allowed(filters: _PersonFilters, org_id: int, person_id: int) -> bool:
+    mode, listed, members = filters.get(org_id, (FilterMode.ALL, set(), None))
+    if members is not None and person_id not in members:
+        return False
     if mode == FilterMode.WHITELIST:
         return person_id in listed
     if mode == FilterMode.BLACKLIST:

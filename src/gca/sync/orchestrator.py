@@ -28,6 +28,7 @@ from gca.models import (
     Review,
     SyncRun,
 )
+from gca.services import membership
 from gca.sync.api import (
     AuthError,
     GitHubClient,
@@ -74,7 +75,16 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def _repo_included(name: str, mode: FilterMode, filter_names: set[str]) -> bool:
+def _repo_included(
+    name: str,
+    mode: FilterMode,
+    filter_names: set[str],
+    *,
+    is_fork: bool = False,
+    ignore_forks: bool = False,
+) -> bool:
+    if ignore_forks and is_fork:
+        return False
     lowered = name.lower()
     names = {n.lower() for n in filter_names}
     if mode == FilterMode.WHITELIST:
@@ -122,7 +132,13 @@ async def _discover(
         repo.is_private = info.is_private
         repo.is_archived = info.is_archived
         repo.is_fork = info.is_fork
-        repo.included = _repo_included(info.name, org.repo_filter_mode, filter_names)
+        repo.included = _repo_included(
+            info.name,
+            org.repo_filter_mode,
+            filter_names,
+            is_fork=info.is_fork,
+            ignore_forks=org.ignore_forks,
+        )
         await session.flush()
         seen_ids.add(repo.id)
         if repo.included:
@@ -190,11 +206,21 @@ async def sync_org(
                     org.credential.rate_snapshot = dict(client.rate_snapshot)
                 repo_infos = await client.list_repos(org_login)
                 included_ids = await _discover(session, org, repo_infos)
+                members_stored: int | None = None
+                if org.members_only:
+                    member_infos = await client.org_members(org_login)
+                    members_stored = await membership.store_members(
+                        session,
+                        org.id,
+                        [(m.login, m.node_id) for m in member_infos],
+                    )
                 run.status = "success"
                 run.stats = {
                     "repos_total": len(repo_infos),
                     "repos_included": len(included_ids),
                 }
+                if members_stored is not None:
+                    run.stats["members"] = members_stored
             except Exception as exc:
                 run.status = "error"
                 run.error = str(exc)[:2000]

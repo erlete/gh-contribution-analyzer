@@ -1,4 +1,4 @@
-"""Identity management: suggestions, merges, unmerges, person filters."""
+"""Identity management: suggestions, merges, unmerges."""
 
 from typing import Annotated
 
@@ -16,7 +16,8 @@ from gca.identity.merge import (
     rename_person,
     unmerge_identity,
 )
-from gca.models import FilterMode, MergeSuggestion, Org, Person, PersonFilter
+from gca.models import MergeSuggestion, Person
+from gca.services import membership
 from gca.web.context import get_scope
 from gca.web.deps import templates
 
@@ -28,17 +29,6 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 @router.get("/manage", response_class=HTMLResponse)
 async def manage_view(request: Request, session: SessionDep) -> Response:
     scope = await get_scope(request, session)
-    suggestions = (
-        (
-            await session.execute(
-                sa.select(MergeSuggestion)
-                .where(MergeSuggestion.status == "pending")
-                .order_by(MergeSuggestion.score.desc())
-            )
-        )
-        .scalars()
-        .all()
-    )
     persons = (
         (
             await session.execute(
@@ -50,17 +40,21 @@ async def manage_view(request: Request, session: SessionDep) -> Response:
         .scalars()
         .all()
     )
+    visible = await membership.visible_person_ids(session)
+    if visible is not None:
+        persons = [p for p in persons if p.id in visible]
     person_by_id = {p.id: p for p in persons}
-    filters = (await session.execute(sa.select(PersonFilter))).scalars().all()
-    filter_entries: dict[int, list[dict[str, str]]] = {}
-    for row in filters:
-        person = person_by_id.get(row.person_id)
-        filter_entries.setdefault(row.org_id, []).append(
-            {
-                "value": str(row.person_id),
-                "label": person.display_name if person else str(row.person_id),
-            }
-        )
+    suggestions = [
+        s
+        for s in (
+            await session.execute(
+                sa.select(MergeSuggestion)
+                .where(MergeSuggestion.status == "pending")
+                .order_by(MergeSuggestion.score.desc())
+            )
+        ).scalars()
+        if s.person_a_id in person_by_id and s.person_b_id in person_by_id
+    ]
     return templates.TemplateResponse(
         request,
         "manage.html",
@@ -69,7 +63,6 @@ async def manage_view(request: Request, session: SessionDep) -> Response:
             "suggestions": suggestions,
             "persons": persons,
             "person_by_id": person_by_id,
-            "filter_entries": filter_entries,
             "mail_error": None,
         },
     )
@@ -180,27 +173,3 @@ async def rename(
     await rename_person(session, person_id, display_name)
     await session.commit()
     return RedirectResponse("/manage?msg=Renamed", status_code=303)
-
-
-@router.post("/manage/filters/{org_id}")
-async def set_person_filters(
-    request: Request,
-    session: SessionDep,
-    org_id: int,
-    mode: Annotated[str, Form()],
-) -> RedirectResponse:
-    org = await session.get_one(Org, org_id)
-    form = await request.form()
-    person_ids = [
-        int(value)
-        for key, value in form.multi_items()
-        if key == "person_ids" and isinstance(value, str) and value.isdigit()
-    ]
-    org.person_filter_mode = FilterMode(mode)
-    await session.execute(sa.delete(PersonFilter).where(PersonFilter.org_id == org_id))
-    for pid in person_ids:
-        session.add(PersonFilter(org_id=org_id, person_id=pid))
-    await session.commit()
-    return RedirectResponse(
-        f"/manage?msg=Person filters updated for {org.login}", status_code=303
-    )

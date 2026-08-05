@@ -11,7 +11,14 @@ from gca.models.ops import (
     SyncRun,
     schedule_recipients,
 )
-from gca.models.org import FilterMode, Org, OrgCredential, PersonFilter, RepoFilter
+from gca.models.org import (
+    FilterMode,
+    Org,
+    OrgCredential,
+    OrgMember,
+    PersonFilter,
+    RepoFilter,
+)
 from gca.models.person import Identity, IdentityKind, MergeSuggestion, Person
 from gca.models.repo import CloneStatus, Repo
 from gca.models.rollup import PersonRepoDayStats
@@ -26,6 +33,7 @@ __all__ = [
     "Org",
     "OrgCredential",
     "PersonFilter",
+    "OrgMember",
     "RepoFilter",
     "Insight",
     "JobLedger",

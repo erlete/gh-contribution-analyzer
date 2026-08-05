@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gca.identity.resolver import normalize_text
 from gca.models import Identity, MergeSuggestion, Person
+from gca.services import membership
 
 _NOREPLY_RE = re.compile(r"^(?:\d+\+)?([a-z0-9-]+)@users\.noreply\.github\.com$")
 _GENERIC_LOCALPARTS = {
@@ -142,6 +143,9 @@ async def load_person_views(session: AsyncSession) -> list[PersonView]:
         if normalize_text(view.display_name):
             view.names.add(normalize_text(view.display_name))
     result = list(views.values())
+    visible = await membership.visible_person_ids(session)
+    if visible is not None:
+        result = [v for v in result if v.id in visible]
     _prune_shared_names(result)
     return result
 

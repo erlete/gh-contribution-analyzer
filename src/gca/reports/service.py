@@ -34,8 +34,9 @@ from gca.timeutil import utcnow
 
 REPORT_KINDS = ("overview", "person", "repo")
 
-# Above this many sections, per-section narratives switch to the fallback
-# statements: one AI call per section would make large documents take hours.
+# AI narratives go to the first this-many sections (subjects are ordered by
+# significance, so the ones that matter get real analysis); sections beyond
+# the cap use the fallback statements so large documents stay bounded.
 AI_SECTION_CAP = 40
 
 
@@ -329,9 +330,9 @@ async def _render_people_document(
     else:
         subjects = board
 
-    use_ai = len(subjects) <= AI_SECTION_CAP
     sections: list[dict[str, object]] = []
-    for me in subjects:
+    for index, me in enumerate(subjects):
+        use_ai = index < AI_SECTION_CAP
         context = await insight_context.person_context(
             session,
             person_id=me.person_id,
@@ -421,9 +422,9 @@ async def _render_repos_document(
     )
     subjects = [s for s in board if s.repo_id in set(repo_ids)] if repo_ids else board
 
-    use_ai = len(subjects) <= AI_SECTION_CAP
     sections: list[dict[str, object]] = []
-    for repo_stat in subjects:
+    for index, repo_stat in enumerate(subjects):
+        use_ai = index < AI_SECTION_CAP
         repo = await session.get_one(Repo, repo_stat.repo_id)
         full_name = f"{repo_stat.org_login}/{repo.name}"
         totals = await stats.totals(

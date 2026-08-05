@@ -46,7 +46,7 @@ async def test_client_happy_path() -> None:
         assert body["model"] == "qwen-max"
         assert body["messages"][0] == {"role": "system", "content": "sys prompt"}
         assert body["messages"][1] == {"role": "user", "content": "user prompt"}
-        assert body["max_tokens"] == 4000
+        assert body["max_tokens"] == 6000
         assert body["temperature"] == 0.3
         return _completion("  Two teams shipped 14 PRs this week.  ")
 
@@ -218,7 +218,10 @@ async def test_instructions_are_part_of_cache_key(
         calls += 1
         body = json.loads(request.content)
         if calls > 1:
-            assert "focus on reviews" in body["messages"][0]["content"]
+            system = body["messages"][0]["content"]
+            assert "focus on reviews" in system
+            # Operator instructions outrank the default area brief.
+            assert "take precedence" in system
         return _completion(f"Insight number {calls}.")
 
     _patch_client(monkeypatch, handler)

@@ -91,6 +91,16 @@ first:
 Signals combine probabilistically into a score; pairs scoring at least 0.55 become
 pending suggestions on the identity screen.
 
+The first two signals are identity proofs, not heuristics: GitHub issued that
+noreply address for exactly that account, and two identities writing from the
+same mailbox belong to the same human. Pairs carrying either signal are
+merged automatically during scans instead of waiting in the queue. The
+survivor is chosen by priority: the person holding a GitHub login identity,
+then the one whose display name looks like a human full name, then the one
+with more consolidated evidence, then the older person. Dismissed pairs are
+never auto-merged (a human already said no), and every automatic merge is
+reversible identity by identity through the split action.
+
 Names carried by more than two persons are excluded from name-based evidence:
 they are machine or shared-account naming (a bot author, a service login
 absorbed into several real people), and pairing their carriers would suggest
@@ -144,10 +154,15 @@ re-dispatched.
 
 Configure an OpenAI-compatible endpoint: base URL, optional bearer key, and model
 name. The insight service assembles a wide statistical context for the current
-view, scope and period (totals, leaderboards, percentiles, per-repo splits),
-requests a short English narrative, and caches the result in the database keyed
-by view, org scope, period, data and instructions, so repeated visits do not
-re-query the model.
+view, scope and period: totals, leaderboards, percentiles and per-repo splits,
+plus the previous period of equal length with percent deltas, a weekly trend
+arc, rank movement, who became active and who went quiet, and how concentrated
+the work is. The model is asked to evaluate, not paraphrase: each area has its
+own default brief (a tight dashboard blurb; person and repository evaluations
+covering trend, standing and anomalies; a 150 to 300 word analytical report
+narrative that compares periods and closes with what to watch). Results are
+cached in the database keyed by view, org scope, period, data, area,
+instructions and model, so repeated visits do not re-query the model.
 
 Every insight area always renders. AI-generated text carries a brain AI chip in
 the top right corner, in the web views and in the PDF reports. When AI is
@@ -156,15 +171,19 @@ built from the same context, without the chip, so the structure of every page
 and report is identical either way.
 
 The settings screen also holds per-area generation instructions (dashboard,
-person views, repository views, reports). Whatever is written there is appended
-to the AI prompt for that area, for example "highlight review activity" or
-"write in a formal tone". Saving changed instructions discards every cached AI
-comment of the affected areas, so all of them regenerate with the new guidance
-as their views load. Already generated PDF reports are immutable documents and
-keep their narratives.
+person views, repository views, reports), for example "highlight review
+activity" or "write in a formal tone". Operator instructions take precedence
+over the default brief of their area: length, tone, structure and emphasis
+follow the operator wherever the two conflict, and only the factuality ground
+rules (real numbers, no invention) are non-negotiable. Saving changed
+instructions discards every cached AI comment of the affected areas, so all
+of them regenerate with the new guidance as their views load. Already
+generated PDF reports are immutable documents and keep their narratives.
 
-Large combined report documents cap AI narrative calls at 40 sections; beyond
-that, sections use the fallback statements so generation time stays bounded.
+In large combined report documents, the 40 most significant sections get AI
+narratives (subjects are ordered by significance) and sections beyond the cap
+use the fallback statements, so the people and repositories that matter get
+real analysis while generation time stays bounded.
 
 ## Report schedules
 
@@ -199,8 +218,9 @@ recipients list, managed on the settings screen.
 
 ## Sync scheduling
 
-- Automatic: every organization with sync enabled is synced every 6 hours (with
-  jitter; the first run starts shortly after the worker boots).
+- Automatic: every organization with sync enabled is synced every hour (with
+  jitter; the first run starts shortly after the worker boots), so dashboards
+  never trail reality by more than about an hour.
 - Manual: the "Sync now" button queues a request that the worker picks up within
   30 seconds. Orgs already running are skipped.
 - Maintenance: weekly (Sunday 04:00 UTC), the worker repacks every clone with the

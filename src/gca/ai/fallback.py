@@ -22,6 +22,51 @@ def _pct(ratio: object) -> str:
         return "0%"
 
 
+def _delta_phrase(value: object, label: str) -> str | None:
+    """'commits up 12% versus the previous period' from a percent delta."""
+    try:
+        pct = float(value)  # type: ignore[arg-type]
+    except TypeError, ValueError:
+        return None
+    direction = "up" if pct >= 0 else "down"
+    return f"{label} {direction} {abs(pct):g}% versus the previous period"
+
+
+def _deltas_sentence(context: dict[str, Any]) -> str | None:
+    deltas = context.get("deltas_vs_previous") or {}
+    phrases = [
+        p
+        for p in (
+            _delta_phrase(deltas.get("commits_pct"), "Commits are"),
+            _delta_phrase(deltas.get("significance_pct"), "significance is"),
+            _delta_phrase(deltas.get("reviews_pct"), "reviews are"),
+        )
+        if p
+    ]
+    if not phrases:
+        return None
+    return ", ".join(phrases) + "."
+
+
+def _turnover_sentence(turnover: dict[str, Any] | None, noun: str) -> str | None:
+    if not turnover:
+        return None
+    arrived = _num(turnover.get("arrived_count"))
+    departed = _num(turnover.get("departed_count"))
+    if not arrived and not departed:
+        return None
+    parts = []
+    if arrived:
+        names = ", ".join(turnover.get("arrived") or [])
+        suffix = f" ({names})" if names else ""
+        parts.append(f"{arrived} {noun} became active{suffix}")
+    if departed:
+        names = ", ".join(turnover.get("departed") or [])
+        suffix = f" ({names})" if names else ""
+        parts.append(f"{departed} went quiet{suffix}")
+    return " and ".join(parts) + " compared with the previous period."
+
+
 def _dashboard(context: dict[str, Any]) -> str:
     totals = context.get("totals") or {}
     period = context.get("period", "the selected period")
@@ -37,6 +82,17 @@ def _dashboard(context: dict[str, Any]) -> str:
         f"{_num(totals.get('deletions')):,} removed, with a churn ratio of "
         f"{_pct(totals.get('churn_ratio'))}.",
     ]
+    deltas = _deltas_sentence(context)
+    if deltas:
+        parts.append(deltas)
+    turnover = _turnover_sentence(context.get("people_turnover"), "people")
+    if turnover:
+        parts.append(turnover)
+    share = context.get("top3_significance_share")
+    if share is not None:
+        parts.append(
+            f"The top three contributors carry {_pct(share)} of total significance."
+        )
     top = context.get("top_contributors") or []
     if top:
         leader = top[0]
@@ -73,13 +129,23 @@ def _person(context: dict[str, Any]) -> str:
         f"({_num(metrics.get('additions')):,} lines added, "
         f"{_num(metrics.get('deletions')):,} removed) in {period.lower()}."
     ]
+    deltas = _deltas_sentence(context)
+    if deltas:
+        parts.append(deltas)
     rank = context.get("rank_by_significance")
     population = _num(context.get("population"))
     percentiles = context.get("percentiles") or {}
     if rank and population:
+        movement = ""
+        change = context.get("rank_change")
+        if isinstance(change, int) and change:
+            movement = (
+                f", {'up' if change > 0 else 'down'} {abs(change)} "
+                f"place{'s' if abs(change) != 1 else ''} versus the previous period"
+            )
         parts.append(
             f"That ranks {rank} of {population} by significance "
-            f"(P{_pct(percentiles.get('significance', 0)).rstrip('%')})."
+            f"(P{_pct(percentiles.get('significance', 0)).rstrip('%')}){movement}."
         )
     parts.append(
         f"Churn ratio is {_pct(metrics.get('churn_ratio'))} "
@@ -117,13 +183,21 @@ def _repo(context: dict[str, Any]) -> str:
         f"{_num(totals.get('deletions')):,} removed "
         f"(churn {_pct(totals.get('churn_ratio'))})."
     ]
+    deltas = _deltas_sentence(context)
+    if deltas:
+        parts.append(deltas)
+    turnover = _turnover_sentence(context.get("contributor_turnover"), "contributors")
+    if turnover:
+        parts.append(turnover)
     top = context.get("top_contributors") or []
     if top:
         leader = top[0]
+        share = context.get("top_contributor_share")
+        share_note = f", {_pct(share)} of the repository's total" if share else ""
         parts.append(
             f"{leader.get('name')} contributed the largest share "
             f"(significance {leader.get('significance')}, "
-            f"{_num(leader.get('commits')):,} commits)."
+            f"{_num(leader.get('commits')):,} commits{share_note})."
         )
     parts.append(
         f"{_num(totals.get('prs_merged')):,} pull requests merged and "

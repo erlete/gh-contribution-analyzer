@@ -27,12 +27,44 @@ from gca.services.settings import SettingsStore
 
 log = logging.getLogger("gca.ai")
 
-_SYSTEM_PROMPT = (
+_BASE_PROMPT = (
     "You are an engineering analytics assistant for a GitHub contribution "
-    "dashboard. Write short, factual, plain-prose insights in English. "
-    "No markdown, no headers, no bullet lists, at most 120 words. Mention "
-    "concrete numbers from the data. Do not invent data."
+    "analytics platform. Ground rules that always apply: use only numbers "
+    "present in the provided data and never invent or extrapolate missing "
+    "values; write plain English prose with no markdown, headers or bullet "
+    "lists; percentages in the data are ratios (0.42 means 42%)."
 )
+
+# Default per-area writing briefs. Operator instructions override these
+# style directives; the ground rules above always hold.
+_AREA_BRIEFS = {
+    "dashboard": (
+        "Write a tight executive blurb, at most 120 words. Lead with the "
+        "most notable change versus the previous period (the data carries "
+        "previous totals and deltas), then the overall activity picture, "
+        "one outlier if any, and notable arrivals or departures."
+    ),
+    "person": (
+        "Evaluate this person's period in at most 180 words: activity "
+        "level and trend versus the previous period, rank movement and "
+        "standing within the population, where the work concentrated and "
+        "whether that focus shifted, review engagement, and anything "
+        "unusual such as churn spikes or a sudden stop or start."
+    ),
+    "repo": (
+        "Evaluate this repository's period in at most 180 words: activity "
+        "trend versus the previous period, contributor dynamics (who "
+        "carries the work, arrivals, departures, concentration risk), "
+        "review coverage, and anything unusual."
+    ),
+    "report": (
+        "Write the analytical narrative for a formal report section, 150 "
+        "to 300 words. Compare against the previous period with concrete "
+        "numbers, name the likely drivers behind the change, call out "
+        "outliers, concentration risk and notable arrivals or departures, "
+        "and close with what deserves attention next period. No filler."
+    ),
+}
 
 
 @dataclass
@@ -73,24 +105,30 @@ async def insight_for(
     if config is not None:
         instructions = (await store.ai_instructions()).get(area, "")
         key = cache_key(
-            view, scope_key, period_key, context, f"{instructions}|{config.model}"
+            view,
+            scope_key,
+            period_key,
+            context,
+            f"{area}|{instructions}|{config.model}",
         )
         cached = await session.scalar(
             sa.select(Insight).where(Insight.cache_key == key)
         )
         if cached is not None:
             return InsightResult(text=cached.content, ai=True)
-        system = _SYSTEM_PROMPT
+        system = f"{_BASE_PROMPT}\n{_AREA_BRIEFS.get(area, _AREA_BRIEFS['dashboard'])}"
         if instructions.strip():
             system += (
-                "\nOperator instructions for this area (follow them as long "
-                f"as they do not contradict the data): {instructions.strip()}"
+                "\nOperator instructions for this area. They take precedence "
+                "over the default brief above (length, tone, structure, "
+                "emphasis) wherever the two conflict; only the ground rules "
+                f"about factuality are non-negotiable: {instructions.strip()}"
             )
         user = (
             f"View: {view}\n"
             f"Period: {period_key}\n"
             f"Data: {json.dumps(context, sort_keys=True, default=str)}\n"
-            "Summarize the notable trends and outliers."
+            "Write the insight now."
         )
         try:
             async with AIClient(config) as client:

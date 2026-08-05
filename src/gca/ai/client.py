@@ -16,8 +16,9 @@ _TIMEOUT = 90.0
 _RETRY_SLEEP = 2.0
 
 # Reasoning models (Qwen3 and friends) burn output budget on hidden thinking
-# before emitting the visible answer, so the ceiling must leave room for both.
-_DEFAULT_MAX_TOKENS = 4000
+# before emitting the visible answer, so the ceiling must leave room for both
+# plus the longer analytical report narratives.
+_DEFAULT_MAX_TOKENS = 6000
 
 
 class AIError(RuntimeError):

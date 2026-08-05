@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.0](https://github.com/erlete/gh-contribution-analyzer/compare/v0.1.2...v0.2.0) (2026-08-05)
+
+
+### Features
+
+* always-on insight areas with AI chip, fallbacks and per-area operator instructions ([dd6bc1a](https://github.com/erlete/gh-contribution-analyzer/commit/dd6bc1a2a3a5c7f7e55f22cbc64ea362ee1e4625))
+* analytical insights, identity auto-merge, hard filters, combined reports and design groundwork ([dd6bc1a](https://github.com/erlete/gh-contribution-analyzer/commit/dd6bc1a2a3a5c7f7e55f22cbc64ea362ee1e4625))
+* automatic merges for identity pairs proven by email evidence, directional merges and survivor rescoring ([dd6bc1a](https://github.com/erlete/gh-contribution-analyzer/commit/dd6bc1a2a3a5c7f7e55f22cbc64ea362ee1e4625))
+* comparative AI context with previous-period deltas, trends, turnover and concentration ([dd6bc1a](https://github.com/erlete/gh-contribution-analyzer/commit/dd6bc1a2a3a5c7f7e55f22cbc64ea362ee1e4625))
+* hourly scheduled sync, configurable APP_PORT and APP_BIND ([dd6bc1a](https://github.com/erlete/gh-contribution-analyzer/commit/dd6bc1a2a3a5c7f7e55f22cbc64ea362ee1e4625))
+* non-blocking report generation and combined single-document reports with TOC ([dd6bc1a](https://github.com/erlete/gh-contribution-analyzer/commit/dd6bc1a2a3a5c7f7e55f22cbc64ea362ee1e4625))
+* per-org hard filters for forks and org members ([dd6bc1a](https://github.com/erlete/gh-contribution-analyzer/commit/dd6bc1a2a3a5c7f7e55f22cbc64ea362ee1e4625))
+* vendored Carbon g90 design tokens, IBM Plex and ECharts with deterministic token build ([dd6bc1a](https://github.com/erlete/gh-contribution-analyzer/commit/dd6bc1a2a3a5c7f7e55f22cbc64ea362ee1e4625))
+
+
+### Bug Fixes
+
+* stop pairing independent accounts that share a machine name ([dd6bc1a](https://github.com/erlete/gh-contribution-analyzer/commit/dd6bc1a2a3a5c7f7e55f22cbc64ea362ee1e4625))
+
 ## [0.1.2](https://github.com/erlete/gh-contribution-analyzer/compare/v0.1.1...v0.1.2) (2026-08-05)
 
 

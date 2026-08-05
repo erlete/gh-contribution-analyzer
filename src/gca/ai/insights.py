@@ -19,6 +19,7 @@ from datetime import timedelta
 from typing import Any
 
 import sqlalchemy as sa
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gca.ai.client import AIClient
@@ -95,6 +96,14 @@ _AREA_BRIEFS = {
         "and concentration risk, and close with what deserves attention "
         "next. No filler."
     ),
+    "research": (
+        "Write the narrative for one research block, at most 140 words. "
+        "The data carries the block's operation, its subjects and "
+        "precomputed facts; explain what the numbers say about how the "
+        "subjects compare or relate, lead with the strongest signal, and "
+        "note weak or noisy evidence honestly. Never speculate about "
+        "causes the data cannot show."
+    ),
 }
 
 
@@ -167,10 +176,21 @@ async def insight_for(
         except Exception as exc:
             log.warning("ai insight generation failed for %s: %s", view, exc)
         else:
-            session.add(
-                Insight(cache_key=key, view=view, content=content, model=config.model)
-            )
-            await session.flush()
+            # Concurrent requests for the same uncached view can both reach
+            # generation; the savepoint lets the loser keep its result while
+            # the winner's row stays canonical.
+            try:
+                async with session.begin_nested():
+                    session.add(
+                        Insight(
+                            cache_key=key,
+                            view=view,
+                            content=content,
+                            model=config.model,
+                        )
+                    )
+            except IntegrityError:
+                log.debug("insight cache race for %s, keeping existing row", view)
             return InsightResult(text=content, ai=True)
     return InsightResult(text=fallback_text(kind or area, context), ai=False)
 
@@ -192,6 +212,7 @@ _AREA_VIEW_PREFIXES = {
     "repos": ("repos",),
     "repo": ("repo:",),
     "report": ("report:",),
+    "research": ("research:",),
 }
 
 

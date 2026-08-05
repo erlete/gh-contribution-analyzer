@@ -14,8 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from gca.ai.insights import insight_for
 from gca.charts import ChartSpec, Series, palettes, render_echarts
 from gca.db.engine import get_session
-from gca.models import Org, Person, Repo
-from gca.services import insight_context, stats
+from gca.models import Org, Person, Repo, Research
+from gca.services import insight_context, research, stats
 from gca.web.context import SCOPE_COOKIE, get_scope, parse_range
 from gca.web.deps import templates
 
@@ -286,6 +286,41 @@ async def insight_partial(
         )
         area = "person"
         view_name = f"person:p{person_id}"
+    elif view == "research":
+        # One research block: the block recomputes for the current window
+        # and its context (facts plus numbers) feeds the narrative.
+        research_id = request.query_params.get("research_id", "")
+        block_idx = request.query_params.get("block", "")
+        row = (
+            await session.get(Research, int(research_id))
+            if research_id.isdigit()
+            else None
+        )
+        blocks = list(row.blocks or []) if row else []
+        index = int(block_idx) if block_idx.isdigit() else -1
+        if row is not None and 0 <= index < len(blocks):
+            block_result = await research.run_block(
+                session,
+                blocks[index],
+                orgs=scope.selected_ids,
+                start=period.start,
+                end=period.end,
+                period_label=period.label,
+                all_time=all_time,
+            )
+            context = block_result.context or {
+                "period": period.label,
+                "period_mode": "all time" if all_time else "window",
+                "facts": [block_result.error or "Nothing to report."],
+            }
+        else:
+            context = {
+                "period": period.label,
+                "period_mode": "all time" if all_time else "window",
+                "facts": ["This research block no longer exists."],
+            }
+        area = "research"
+        view_name = f"research:{research_id}:{index}"
     elif view == "repo" and repo_id.isdigit():
         repo = await session.get(Repo, int(repo_id))
         org = await session.get(Org, repo.org_id) if repo else None

@@ -214,10 +214,19 @@ def _repo(context: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def _research(context: dict[str, Any]) -> str:
+    """Research blocks precompute their factual statements; join them."""
+    facts = [str(f).strip() for f in (context.get("facts") or []) if str(f).strip()]
+    if not facts:
+        return f"No recorded activity for this block {_period_phrase(context)}."
+    return " ".join(facts)
+
+
 _GENERATORS = {
     "dashboard": _dashboard,
     "person": _person,
     "repo": _repo,
+    "research": _research,
 }
 
 

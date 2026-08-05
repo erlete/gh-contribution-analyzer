@@ -401,6 +401,18 @@
   .info-tip:hover .tip,
   .info-tip:focus-within .tip { visibility: visible; opacity: 1; }
 
+  /* ---- research blocks ------------------------------------------------- */
+
+  .block-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-03);
+  }
+  .block-head h2 { margin-bottom: var(--sp-05); }
+  /* The op info icon sits level with the operation select beside it. */
+  .op-info { display: inline-flex; align-items: center; min-height: var(--size-md); }
+
   /* ---- tags ------------------------------------------------------------ */
 
   .tag {

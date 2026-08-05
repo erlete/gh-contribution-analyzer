@@ -128,8 +128,45 @@ document.addEventListener('keydown', function (e) {
   }
 });
 
+/* Research composer: the operation select decides which entity and metric
+   slots are visible, and the info icon next to it mirrors the selected
+   operation's explanation. Ops config rides in the form's data-ops JSON:
+   {op: {slots: [...], info: "..."}}. */
+function initResearchComposer(root) {
+  var form = (root || document).querySelector('#block-composer');
+  if (!form || form.dataset.ready) return;
+  form.dataset.ready = '1';
+  var ops = {};
+  try { ops = JSON.parse(form.dataset.ops || '{}'); } catch (e) { ops = {}; }
+  var opSelect = form.querySelector('select[name="op"]');
+  var entitySelect = form.querySelector('select[name="entity"]');
+  var infoBtn = form.querySelector('.op-info .info-btn');
+  var infoTip = form.querySelector('.op-info .tip');
+  if (!opSelect) return;
+
+  function apply() {
+    var def = ops[opSelect.value] || { slots: [], info: '' };
+    var slots = def.slots.slice();
+    if (slots.indexOf('entity') !== -1) {
+      var wanted = entitySelect && entitySelect.value === 'repos' ? 'repos' : 'people';
+      slots = slots.filter(function (s) { return s !== 'people' && s !== 'repos'; });
+      slots.push(wanted);
+    }
+    form.querySelectorAll('[data-slot]').forEach(function (wrap) {
+      wrap.hidden = slots.indexOf(wrap.dataset.slot) === -1;
+    });
+    if (infoBtn) infoBtn.setAttribute('aria-label', def.info);
+    if (infoTip) infoTip.textContent = def.info;
+  }
+
+  opSelect.addEventListener('change', apply);
+  if (entitySelect) entitySelect.addEventListener('change', apply);
+  apply();
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   initListBuilders();
   initRowFilters();
   initAutosubmit();
+  initResearchComposer();
 });

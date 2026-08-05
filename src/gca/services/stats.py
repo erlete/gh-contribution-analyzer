@@ -9,7 +9,7 @@ and range.
 
 from dataclasses import dataclass
 from dataclasses import field as dc_field
-from datetime import date
+from datetime import date, timedelta
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -425,6 +425,67 @@ async def person_repo_split(
     return await repo_leaderboard(
         session, orgs=orgs, start=start, end=end, person_ids=[person_id]
     )
+
+
+async def weekly_by_entity(
+    session: AsyncSession,
+    *,
+    orgs: list[int],
+    start: date,
+    end: date,
+    by: str,
+    person_ids: list[int] | None = None,
+    repo_ids: list[int] | None = None,
+) -> dict[int, dict[date, dict[str, float]]]:
+    """Per-entity weekly metric sums; `by` is "person" or "repo".
+
+    Weeks are Monday-starting dates. Entities appear only for weeks with
+    recorded activity, so callers fill gaps against their own week axis."""
+    filters = await _person_filter_map(session, orgs)
+    entity_col = (
+        PersonRepoDayStats.person_id if by == "person" else PersonRepoDayStats.repo_id
+    )
+    q = (
+        sa.select(
+            entity_col.label("entity_id"),
+            PersonRepoDayStats.org_id,
+            PersonRepoDayStats.person_id,
+            PersonRepoDayStats.day,
+            *(
+                sa.func.sum(getattr(PersonRepoDayStats, name)).label(name)
+                for name in METRIC_FIELDS
+            ),
+        )
+        .join(Repo, PersonRepoDayStats.repo_id == Repo.id)
+        .where(
+            Repo.included.is_(True),
+            PersonRepoDayStats.day >= start,
+            PersonRepoDayStats.day < end,
+        )
+        .group_by(
+            entity_col,
+            PersonRepoDayStats.org_id,
+            PersonRepoDayStats.person_id,
+            PersonRepoDayStats.day,
+        )
+    )
+    if orgs:
+        q = q.where(PersonRepoDayStats.org_id.in_(orgs))
+    if repo_ids:
+        q = q.where(PersonRepoDayStats.repo_id.in_(repo_ids))
+    if person_ids:
+        q = q.where(PersonRepoDayStats.person_id.in_(person_ids))
+    result: dict[int, dict[date, dict[str, float]]] = {}
+    for row in (await session.execute(q)).all():
+        if not _person_allowed(filters, row.org_id, row.person_id):
+            continue
+        week = row.day - timedelta(days=row.day.weekday())
+        bucket = result.setdefault(row.entity_id, {}).setdefault(
+            week, dict.fromkeys(METRIC_FIELDS, 0.0)
+        )
+        for name in METRIC_FIELDS:
+            bucket[name] += float(getattr(row, name) or 0)
+    return result
 
 
 async def repo_contributors(

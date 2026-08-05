@@ -23,6 +23,7 @@ from gca.web.routers import (
     people,
     reports,
     repos,
+    research,
     setup,
 )
 from gca.web.routers import (
@@ -126,6 +127,7 @@ def create_app() -> FastAPI:
     app.include_router(operations.router)
     app.include_router(orgs.router)
     app.include_router(reports.router)
+    app.include_router(research.router)
     app.include_router(settings_router.router)
     return app
 

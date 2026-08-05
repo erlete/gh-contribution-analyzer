@@ -99,6 +99,7 @@ async def test_ai_instructions_roundtrip(session: AsyncSession) -> None:
         "repos": "",
         "repo": "",
         "report": "",
+        "research": "",
     }
     await store.set_ai_instructions(
         {"dashboard": "  focus on totals  ", "person": "", "bogus": "ignored"}

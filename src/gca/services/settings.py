@@ -21,7 +21,15 @@ MAIL_STATUS_KEY = "mail_status"
 
 # Instruction buckets: group views (people, repos) are separate from the
 # individual views (person, repo) so guidance never mixes across the two.
-INSIGHT_AREAS = ("dashboard", "people", "person", "repos", "repo", "report")
+INSIGHT_AREAS = (
+    "dashboard",
+    "people",
+    "person",
+    "repos",
+    "repo",
+    "report",
+    "research",
+)
 
 
 class GraphMailConfig(BaseModel):

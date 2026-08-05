@@ -130,6 +130,28 @@ class ReportSchedule(Base):
     recipients: Mapped[list[Recipient]] = relationship(secondary=schedule_recipients)
 
 
+class Research(Base):
+    """A saved research: a named stack of analysis block configurations.
+
+    Blocks store configuration only ([{op, entity ids, metric}, ...]);
+    results are recomputed for the currently selected period and scope on
+    every visit, and per-block AI narratives ride the insight cache keyed
+    on the computed context, so persistence never serves stale numbers.
+    """
+
+    __tablename__ = "researches"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    blocks: Mapped[list | None] = mapped_column(JSONVariant)  # type: ignore[type-arg]
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+
 class Report(Base):
     __tablename__ = "reports"
 

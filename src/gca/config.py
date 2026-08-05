@@ -1,8 +1,10 @@
 """Deployment configuration read from the environment.
 
 Only deployment internals live here. Operational settings (org tokens, mail, AI,
-recipients, schedules) are managed in-app through the settings store; the MAIL_*,
-SMTP_* and AI_* fields below merely seed initial defaults on first boot.
+recipients, schedules) are managed in-app through the settings store; the MAIL_*
+and AI_* fields below merely seed initial defaults on first boot. SMTP has no
+environment seeds on purpose: it is a fallback backend configured entirely from
+the settings screen.
 """
 
 from functools import lru_cache
@@ -24,13 +26,6 @@ class Settings(BaseSettings):
     mail_azure_client_secret: str = ""
     mail_azure_tenant_id: str = ""
     mail_sender_address: str = ""
-
-    smtp_host: str = ""
-    smtp_port: int = 587
-    smtp_username: str = ""
-    smtp_password: str = ""
-    smtp_starttls: bool = True
-    smtp_sender_address: str = ""
 
     ai_service_url: str = ""
     ai_service_key: str = ""

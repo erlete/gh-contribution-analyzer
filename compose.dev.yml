@@ -3,6 +3,8 @@
 # defaults below are public development values: NEVER reuse them in any
 # production .env. Run with:
 #   docker compose -f compose.yml -f compose.dev.yml up --build
+# Mail in dev: configure SMTP once on the settings screen with host mailpit,
+# port 1025, STARTTLS off. SMTP has no environment seeds.
 
 services:
   caddy:
@@ -21,10 +23,6 @@ services:
     environment:
       APP_SECRET_KEY: ${APP_SECRET_KEY:-mr-qnw-SwqyywZTKYwVqY4163BDQIZGpBE1ox7e0eiM=}
       PYTHONPATH: /app/src
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_STARTTLS: "false"
-      SMTP_SENDER_ADDRESS: gca-dev@localhost
     volumes:
       - ./src:/app/src:ro
       - ./migrations:/app/migrations:ro
@@ -35,10 +33,6 @@ services:
     environment:
       APP_SECRET_KEY: ${APP_SECRET_KEY:-mr-qnw-SwqyywZTKYwVqY4163BDQIZGpBE1ox7e0eiM=}
       PYTHONPATH: /app/src
-      SMTP_HOST: mailpit
-      SMTP_PORT: 1025
-      SMTP_STARTTLS: "false"
-      SMTP_SENDER_ADDRESS: gca-dev@localhost
     volumes:
       - ./src:/app/src:ro
       - ./migrations:/app/migrations:ro

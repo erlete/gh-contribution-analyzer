@@ -268,6 +268,23 @@ async def test_auto_merge_on_shared_email_proof(session: AsyncSession) -> None:
     assert len(persons) == 1
 
 
+async def test_auto_merge_adopts_full_name_over_handle(
+    session: AsyncSession,
+) -> None:
+    """When the surviving login holder shows a handle and the absorbed person
+    carried a human full name, the merged person takes the full name."""
+    await get_or_create_github_identity(session, login="mariogzb")
+    await get_or_create_git_identity(
+        session,
+        name="Mario Gonzalez Besada",
+        email="9+mariogzb@users.noreply.github.com",
+    )
+    _, _, merged = await suggest.generate(session)
+    assert merged == 1
+    person = (await session.execute(suggest.sa.select(Person))).scalar_one()
+    assert person.display_name == "Mario Gonzalez Besada"
+
+
 async def test_auto_merge_follows_chains(session: AsyncSession) -> None:
     """Three persons proven identical pairwise collapse into one survivor."""
     await get_or_create_git_identity(session, name="A", email="jane@corp.com")

@@ -241,7 +241,16 @@ async def _auto_merge(
         if view_a is None or view_b is None:
             continue
         target, source = _choose_survivor(view_a, view_b)
-        await merge_persons(session, target.id, source.id)
+        survivor = await merge_persons(session, target.id, source.id)
+        # Nobody chose a name for an automatic merge: when the survivor shows
+        # a handle but the absorbed person carried a human full name, adopt
+        # the fuller name.
+        if (
+            " " not in survivor.display_name.strip()
+            and " " in source.display_name.strip()
+        ):
+            survivor.display_name = source.display_name
+            await session.flush()
         redirect[source.id] = target.id
         merged += 1
     return merged

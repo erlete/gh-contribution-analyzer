@@ -80,7 +80,7 @@
 </div>
 
 <script>
-fetch('/api/trend?range={{ period.key }}&person_id={{ person.id }}').then(r => r.json()).then(data => {
+fetch(window.location.origin + '/api/trend?range={{ period.key }}&person_id={{ person.id }}').then(r => r.json()).then(data => {
   new Chart(document.getElementById('trend'), {
     type: 'line',
     data: {

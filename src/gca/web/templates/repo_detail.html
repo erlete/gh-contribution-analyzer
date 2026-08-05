@@ -57,7 +57,7 @@
 </div>
 
 <script>
-fetch('/api/trend?range={{ period.key }}&repo_id={{ repo.id }}').then(r => r.json()).then(data => {
+fetch(window.location.origin + '/api/trend?range={{ period.key }}&repo_id={{ repo.id }}').then(r => r.json()).then(data => {
   new Chart(document.getElementById('trend'), {
     type: 'bar',
     data: {

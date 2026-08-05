@@ -1,0 +1,71 @@
+{
+  "baseFontSize": 16,
+  "miniUnit": 8,
+  "spacing": [
+    "0.125rem",
+    "0.25rem",
+    "0.5rem",
+    "0.75rem",
+    "1rem",
+    "1.5rem",
+    "2rem",
+    "2.5rem",
+    "3rem",
+    "4rem",
+    "5rem",
+    "6rem",
+    "10rem"
+  ],
+  "fluidSpacing": [
+    0,
+    "2vw",
+    "5vw",
+    "10vw"
+  ],
+  "container": [
+    "1.5rem",
+    "2rem",
+    "2.5rem",
+    "3rem",
+    "4rem"
+  ],
+  "iconSize": [
+    "1rem",
+    "1.25rem"
+  ],
+  "sizes": {
+    "XSmall": "1.5rem",
+    "Small": "2rem",
+    "Medium": "2.5rem",
+    "Large": "3rem",
+    "XLarge": "4rem",
+    "2XLarge": "5rem"
+  },
+  "breakpoints": {
+    "sm": {
+      "width": "20rem",
+      "columns": 4,
+      "margin": "0"
+    },
+    "md": {
+      "width": "42rem",
+      "columns": 8,
+      "margin": "1rem"
+    },
+    "lg": {
+      "width": "66rem",
+      "columns": 16,
+      "margin": "1rem"
+    },
+    "xlg": {
+      "width": "82rem",
+      "columns": 16,
+      "margin": "1rem"
+    },
+    "max": {
+      "width": "99rem",
+      "columns": 16,
+      "margin": "1.5rem"
+    }
+  }
+}

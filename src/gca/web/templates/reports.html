@@ -82,19 +82,27 @@
   <table>
     <tr><th>Title</th><th>Kind</th><th>Period</th><th>Status</th><th>Generated</th><th></th></tr>
     {% for r in archive %}
+    {% set label = 'generating' if r.status in ('queued', 'generating') else r.status %}
     <tr>
       <td>{{ r.title }}</td>
       <td><span class="pill">{{ r.kind }}</span> <span class="pill">{{ r.period_kind }}</span></td>
       <td class="small muted">{{ r.period_start.date() }} to {{ r.period_end.date() }}</td>
       <td>
-        <span class="pill {{ 'good' if r.status == 'emailed' else 'warn' if r.status == 'unsent' else '' }}">{{ r.status }}</span>
+        <span class="pill {{ 'good' if label in ('generated', 'emailed') else 'bad' if label == 'failed' else 'warn' }}"
+              {% if label == 'failed' and r.error %}title="{{ r.error }}"{% endif %}>{{ label }}</span>
       </td>
       <td class="small muted">{{ r.generated_at }}</td>
       <td class="actions">
+        {% if r.pdf_path %}
         <a class="btn secondary" href="/reports/{{ r.id }}/download">PDF</a>
         <form method="post" action="/reports/{{ r.id }}/email">
           <button type="submit" class="secondary">Email</button>
         </form>
+        {% elif label == 'failed' %}
+        <span class="muted small">{{ (r.error or 'generation failed') | truncate(60) }}</span>
+        {% else %}
+        <span class="muted small">working on it</span>
+        {% endif %}
       </td>
     </tr>
     {% else %}

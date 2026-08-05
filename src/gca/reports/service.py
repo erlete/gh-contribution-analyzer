@@ -7,6 +7,12 @@ the endpoint is configured (marked with the AI chip) and a deterministic
 data statement otherwise. Documents with many sections cap the number of AI
 narrative calls so generation time stays bounded; sections beyond the cap
 use the fallback statements.
+
+Generation is split in two so it can run non-blocking: `request_report`
+creates a `queued` row carrying its filters in `params`, and
+`fulfill_report` renders the PDF and flips the row to `generated` (or the
+caller marks it `failed`). The worker drains queued rows; the synchronous
+`generate_reports` wrapper (scheduler, CLI) does both steps inline.
 """
 
 import asyncio
@@ -53,6 +59,125 @@ async def _chart(session: AsyncSession, **kwargs: object) -> str | None:
     return await asyncio.to_thread(trend_chart_data_uri, series)
 
 
+_TITLES = {
+    "overview": "Contribution overview",
+    "person": "Individual contributor report",
+    "repo": "Repository report",
+}
+
+_SLUGS = {"overview": "all", "person": "people", "repo": "repos"}
+
+
+async def request_report(
+    session: AsyncSession,
+    *,
+    kind: str,
+    org_ids: list[int],
+    start: date,
+    end: date,
+    period_kind: str = "custom",
+    period_label: str | None = None,
+    repo_ids: list[int] | None = None,
+    person_ids: list[int] | None = None,
+) -> Report:
+    """Create a queued report row carrying its generation filters."""
+    if kind not in REPORT_KINDS:
+        raise ValueError(f"unknown report kind: {kind}")
+    label = period_label or f"{start.isoformat()} to {end.isoformat()}"
+    report = Report(
+        kind=kind,
+        title=f"{_TITLES[kind]}, {label}",
+        period_kind=period_kind,
+        period_start=datetime.combine(start, time.min, tzinfo=UTC),
+        period_end=datetime.combine(end, time.min, tzinfo=UTC),
+        org_scope=org_ids or None,
+        params={
+            "period_label": label,
+            "repo_ids": repo_ids or [],
+            "person_ids": person_ids or [],
+        },
+        status="queued",
+    )
+    session.add(report)
+    await session.flush()
+    return report
+
+
+async def fulfill_report(
+    session: AsyncSession,
+    report: Report,
+    reports_dir: str | Path | None = None,
+) -> None:
+    """Render a requested report and flip its row to generated. Raises on
+    failure so the caller can mark the row failed."""
+    base_dir = Path(reports_dir or get_settings().reports_dir)
+    params = report.params or {}
+    org_ids = [int(i) for i in (report.org_scope or [])]
+    start = report.period_start.date()
+    end = report.period_end.date()
+    label = str(params.get("period_label") or f"{start} to {end}")
+    repo_ids = [int(i) for i in params.get("repo_ids") or []] or None
+    person_ids = [int(i) for i in params.get("person_ids") or []] or None
+    common = {
+        "period_label": label,
+        "scope_label": await _scope_label(session, org_ids),
+        "generated_at": utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        "churn_window": DEFAULT_CHURN_WINDOW_DAYS,
+    }
+    scope_key = ",".join(str(i) for i in sorted(org_ids)) or "all"
+    period_key = f"{report.period_kind}:{start.isoformat()}:{end.isoformat()}"
+
+    if report.kind == "overview":
+        pdf = await _render_overview(
+            session,
+            org_ids=org_ids,
+            start=start,
+            end=end,
+            scope_key=scope_key,
+            period_key=period_key,
+            common=common,
+            repo_ids=repo_ids,
+            person_ids=person_ids,
+            title=report.title,
+        )
+    elif report.kind == "person":
+        pdf = await _render_people_document(
+            session,
+            org_ids=org_ids,
+            start=start,
+            end=end,
+            scope_key=scope_key,
+            period_key=period_key,
+            common=common,
+            repo_ids=repo_ids,
+            person_ids=person_ids,
+            title=report.title,
+        )
+    else:
+        pdf = await _render_repos_document(
+            session,
+            org_ids=org_ids,
+            start=start,
+            end=end,
+            scope_key=scope_key,
+            period_key=period_key,
+            common=common,
+            repo_ids=repo_ids,
+            person_ids=person_ids,
+            title=report.title,
+        )
+
+    relative = _report_path(report.kind, _SLUGS[report.kind], start)
+    target = base_dir / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(pdf)
+    report.pdf_path = relative
+    report.status = "generated"
+    report.error = None
+    report.generated_at = utcnow()
+    await session.flush()
+
+
 async def generate_reports(
     session: AsyncSession,
     *,
@@ -66,81 +191,36 @@ async def generate_reports(
     person_ids: list[int] | None = None,
     reports_dir: str | Path | None = None,
 ) -> list[Report]:
-    """Generate PDF reports and persist their rows. Every kind produces one
-    document; the returned list keeps the plural signature for callers."""
-    if kind not in REPORT_KINDS:
-        raise ValueError(f"unknown report kind: {kind}")
-    base_dir = Path(reports_dir or get_settings().reports_dir)
-    scope_label = await _scope_label(session, org_ids)
-    label = period_label or f"{start.isoformat()} to {end.isoformat()}"
-    common = {
-        "period_label": label,
-        "scope_label": scope_label,
-        "generated_at": utcnow().strftime("%Y-%m-%d %H:%M UTC"),
-        "churn_window": DEFAULT_CHURN_WINDOW_DAYS,
-    }
-    scope_key = ",".join(str(i) for i in sorted(org_ids)) or "all"
-    period_key = f"{period_kind}:{start.isoformat()}:{end.isoformat()}"
-
-    if kind == "overview":
-        report = await _generate_overview(
-            session,
-            org_ids=org_ids,
-            start=start,
-            end=end,
-            period_kind=period_kind,
-            scope_key=scope_key,
-            period_key=period_key,
-            common=common,
-            base_dir=base_dir,
-            repo_ids=repo_ids,
-            person_ids=person_ids,
-        )
-    elif kind == "person":
-        report = await _generate_people_document(
-            session,
-            org_ids=org_ids,
-            start=start,
-            end=end,
-            period_kind=period_kind,
-            scope_key=scope_key,
-            period_key=period_key,
-            common=common,
-            base_dir=base_dir,
-            repo_ids=repo_ids,
-            person_ids=person_ids,
-        )
-    else:
-        report = await _generate_repos_document(
-            session,
-            org_ids=org_ids,
-            start=start,
-            end=end,
-            period_kind=period_kind,
-            scope_key=scope_key,
-            period_key=period_key,
-            common=common,
-            base_dir=base_dir,
-            repo_ids=repo_ids,
-            person_ids=person_ids,
-        )
+    """Synchronous request-and-fulfill path for the scheduler and the CLI.
+    The returned list keeps the plural signature for callers."""
+    report = await request_report(
+        session,
+        kind=kind,
+        org_ids=org_ids,
+        start=start,
+        end=end,
+        period_kind=period_kind,
+        period_label=period_label,
+        repo_ids=repo_ids,
+        person_ids=person_ids,
+    )
+    await fulfill_report(session, report, reports_dir=reports_dir)
     return [report]
 
 
-async def _generate_overview(
+async def _render_overview(
     session: AsyncSession,
     *,
     org_ids: list[int],
     start: date,
     end: date,
-    period_kind: str,
     scope_key: str,
     period_key: str,
     common: dict[str, object],
-    base_dir: Path,
     repo_ids: list[int] | None,
     person_ids: list[int] | None,
-) -> Report:
+    title: str,
+) -> bytes:
     totals = await stats.totals(
         session, orgs=org_ids, start=start, end=end, repo_ids=repo_ids
     )
@@ -179,8 +259,7 @@ async def _generate_overview(
         area="report",
         kind="dashboard",
     )
-    title = f"Contribution overview, {common['period_label']}"
-    pdf = await asyncio.to_thread(
+    return await asyncio.to_thread(
         render_pdf,
         "overview.html",
         {
@@ -195,18 +274,6 @@ async def _generate_overview(
             "narrative": narrative.text,
             "narrative_ai": narrative.ai,
         },
-    )
-    return await _store(
-        session,
-        pdf,
-        base_dir,
-        kind="overview",
-        slug="all",
-        title=title,
-        period_kind=period_kind,
-        start=start,
-        end=end,
-        org_ids=org_ids,
     )
 
 
@@ -233,20 +300,19 @@ async def _section_narrative(
     )
 
 
-async def _generate_people_document(
+async def _render_people_document(
     session: AsyncSession,
     *,
     org_ids: list[int],
     start: date,
     end: date,
-    period_kind: str,
     scope_key: str,
     period_key: str,
     common: dict[str, object],
-    base_dir: Path,
     repo_ids: list[int] | None,
     person_ids: list[int] | None,
-) -> Report:
+    title: str,
+) -> bytes:
     board = await stats.person_leaderboard(
         session, orgs=org_ids, start=start, end=end, repo_ids=repo_ids
     )
@@ -317,17 +383,14 @@ async def _generate_people_document(
 
     return await _render_collection(
         session,
-        base_dir=base_dir,
         common=common,
         org_ids=org_ids,
         start=start,
         end=end,
-        period_kind=period_kind,
         scope_key=scope_key,
         period_key=period_key,
-        kind="person",
         slug="people",
-        title=f"Individual contributor report, {common['period_label']}",
+        title=title,
         intro_line=(
             f"This document analyzes {len(sections)} "
             f"{'person' if len(sections) == 1 else 'people'} individually. "
@@ -340,20 +403,19 @@ async def _generate_people_document(
     )
 
 
-async def _generate_repos_document(
+async def _render_repos_document(
     session: AsyncSession,
     *,
     org_ids: list[int],
     start: date,
     end: date,
-    period_kind: str,
     scope_key: str,
     period_key: str,
     common: dict[str, object],
-    base_dir: Path,
     repo_ids: list[int] | None,
     person_ids: list[int] | None,
-) -> Report:
+    title: str,
+) -> bytes:
     board = await stats.repo_leaderboard(
         session, orgs=org_ids, start=start, end=end, person_ids=person_ids
     )
@@ -406,17 +468,14 @@ async def _generate_repos_document(
 
     return await _render_collection(
         session,
-        base_dir=base_dir,
         common=common,
         org_ids=org_ids,
         start=start,
         end=end,
-        period_kind=period_kind,
         scope_key=scope_key,
         period_key=period_key,
-        kind="repo",
         slug="repos",
-        title=f"Repository report, {common['period_label']}",
+        title=title,
         intro_line=(
             f"This document analyzes {len(sections)} "
             f"{'repository' if len(sections) == 1 else 'repositories'} "
@@ -432,21 +491,18 @@ async def _generate_repos_document(
 async def _render_collection(
     session: AsyncSession,
     *,
-    base_dir: Path,
     common: dict[str, object],
     org_ids: list[int],
     start: date,
     end: date,
-    period_kind: str,
     scope_key: str,
     period_key: str,
-    kind: str,
     slug: str,
     title: str,
     intro_line: str,
     sections: list[dict[str, object]],
     population: int | None,
-) -> Report:
+) -> bytes:
     scope_totals = await stats.totals(session, orgs=org_ids, start=start, end=end)
     intro_context = await insight_context.dashboard_context(
         session,
@@ -465,7 +521,7 @@ async def _render_collection(
         area="report",
         kind="dashboard",
     )
-    pdf = await asyncio.to_thread(
+    return await asyncio.to_thread(
         render_pdf,
         "collection.html",
         {
@@ -479,51 +535,3 @@ async def _render_collection(
             "population": population,
         },
     )
-    return await _store(
-        session,
-        pdf,
-        base_dir,
-        kind=kind,
-        slug=slug,
-        title=title,
-        period_kind=period_kind,
-        start=start,
-        end=end,
-        org_ids=org_ids,
-    )
-
-
-async def _store(
-    session: AsyncSession,
-    pdf: bytes,
-    base_dir: Path,
-    *,
-    kind: str,
-    slug: str,
-    title: str,
-    period_kind: str,
-    start: date,
-    end: date,
-    org_ids: list[int],
-    subject_type: str | None = None,
-    subject_id: int | None = None,
-) -> Report:
-    relative = _report_path(kind, slug, start)
-    target = base_dir / relative
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(pdf)
-    report = Report(
-        kind=kind,
-        title=title,
-        period_kind=period_kind,
-        period_start=datetime.combine(start, time.min, tzinfo=UTC),
-        period_end=datetime.combine(end, time.min, tzinfo=UTC),
-        org_scope=org_ids or None,
-        subject_type=subject_type,
-        subject_id=subject_id,
-        pdf_path=relative,
-        status="generated",
-    )
-    session.add(report)
-    await session.flush()
-    return report

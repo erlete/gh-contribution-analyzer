@@ -35,6 +35,13 @@ async def _run() -> None:
         coalesce=True,
     )
     scheduler.add_job(
+        jobs.process_report_queue,
+        IntervalTrigger(seconds=15),
+        args=[factory],
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
         jobs.period_watcher,
         CronTrigger(hour=0, minute=15),
         args=[factory],

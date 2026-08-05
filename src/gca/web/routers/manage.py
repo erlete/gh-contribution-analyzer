@@ -17,7 +17,7 @@ from gca.identity.merge import (
     unmerge_identity,
 )
 from gca.models import MergeSuggestion, Person
-from gca.services import audit, membership
+from gca.services import audit
 from gca.web.context import get_scope
 from gca.web.deps import templates
 
@@ -40,9 +40,9 @@ async def manage_view(request: Request, session: SessionDep) -> Response:
         .scalars()
         .all()
     )
-    visible = await membership.visible_person_ids(session)
-    if visible is not None:
-        persons = [p for p in persons if p.id in visible]
+    # No visibility filtering here: identity management is the repair
+    # surface, so it must show persons that members_only hides from stats
+    # (they are the duplicates whose merges recover lost attribution).
     person_by_id = {p.id: p for p in persons}
     suggestions = [
         s

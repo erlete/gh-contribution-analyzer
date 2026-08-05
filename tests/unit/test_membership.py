@@ -91,6 +91,25 @@ async def test_member_person_sets_links_login_and_noreply(
     assert outsider.id not in sets[org.id]
 
 
+async def test_member_person_sets_links_git_name_to_login(
+    session: AsyncSession,
+) -> None:
+    """People routinely set git user.name to their GitHub login; that name
+    must count as membership even when the identity carries no login."""
+    org = Org(login="acme")
+    session.add(org)
+    await session.flush()
+    by_name = await _person(session, "MiguelCroche", email="miguel@corp.com")
+    spaced = await _person(session, "Jane Doe", email="jd@corp.com")
+    await membership.store_members(
+        session, org.id, [("MiguelCroche", "N1"), ("JaneDoe", "N2")]
+    )
+    sets = await membership.member_person_sets(session, [org.id])
+    assert by_name.id in sets[org.id]
+    # A spaced full name matches its space-squashed login form.
+    assert spaced.id in sets[org.id]
+
+
 async def _activity(
     session: AsyncSession, person: Person, repo: Repo, org: Org
 ) -> None:

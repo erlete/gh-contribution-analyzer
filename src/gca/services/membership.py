@@ -101,6 +101,21 @@ async def member_person_sets(
     return result
 
 
+async def relevant_person_ids(session: AsyncSession) -> set[int] | None:
+    """Persons identity surfaces (suggestions, manage page) may show: the
+    stats-visible set plus every member-linked person even without
+    activity. Returns None when no restriction is active. Externals whose
+    activity lies only in excluded or fork repos are in neither set."""
+    visible = await visible_person_ids(session)
+    if visible is None:
+        return None
+    orgs = (await session.execute(sa.select(Org.id, Org.members_only))).all()
+    restricted = [row.id for row in orgs if row.members_only]
+    for members in (await member_person_sets(session, restricted)).values():
+        visible |= members
+    return visible
+
+
 async def visible_person_ids(session: AsyncSession) -> set[int] | None:
     """Persons visible somewhere: they have activity in an included repo of
     an org whose members rule they pass. Returns None when no restriction is

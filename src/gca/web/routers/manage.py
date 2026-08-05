@@ -17,7 +17,7 @@ from gca.identity.merge import (
     unmerge_identity,
 )
 from gca.models import MergeSuggestion, Person
-from gca.services import audit
+from gca.services import audit, membership
 from gca.web.context import get_scope
 from gca.web.deps import templates
 
@@ -40,19 +40,30 @@ async def manage_view(request: Request, session: SessionDep) -> Response:
         .scalars()
         .all()
     )
-    # No visibility filtering here: identity management is the repair
-    # surface, so it must show persons that members_only hides from stats
-    # (they are the duplicates whose merges recover lost attribution).
-    person_by_id = {p.id: p for p in persons}
-    suggestions = [
-        s
-        for s in (
+    pending = (
+        (
             await session.execute(
                 sa.select(MergeSuggestion)
                 .where(MergeSuggestion.status == "pending")
                 .order_by(MergeSuggestion.score.desc())
             )
-        ).scalars()
+        )
+        .scalars()
+        .all()
+    )
+    # The list shows stats-visible and member-linked persons plus anyone a
+    # pending suggestion references. Hidden member duplicates always ride
+    # in via their pair with a relevant person; externals whose activity
+    # lies only in excluded or fork repos never appear (their commits
+    # never count, so their identity hygiene is nobody's problem).
+    relevant = await membership.relevant_person_ids(session)
+    referenced = {s.person_a_id for s in pending} | {s.person_b_id for s in pending}
+    if relevant is not None:
+        persons = [p for p in persons if p.id in relevant or p.id in referenced]
+    person_by_id = {p.id: p for p in persons}
+    suggestions = [
+        s
+        for s in pending
         if s.person_a_id in person_by_id and s.person_b_id in person_by_id
     ]
     return templates.TemplateResponse(

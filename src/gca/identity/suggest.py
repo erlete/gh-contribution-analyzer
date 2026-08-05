@@ -13,8 +13,10 @@ The first four signals are identity proofs: pairs carrying one are merged
 automatically during scans instead of waiting in the suggestion queue.
 Scoring sees every person, including those hidden from stats surfaces by
 members_only, because hidden git-email duplicates are the ones whose
-attribution a merge recovers. Dismissed pairs are never auto-merged; a
-human already said no.
+attribution a merge recovers. Heuristic suggestions, however, only surface
+when at least one side is visible: pairs of two hidden externals (fork
+history, excluded repos) never reach the queue. Dismissed pairs are never
+auto-merged; a human already said no.
 """
 
 import re
@@ -27,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gca.identity.resolver import normalize_text
 from gca.models import Identity, MergeSuggestion, Person
+from gca.services import membership
 
 _NOREPLY_RE = re.compile(r"^(?:\d+\+)?([a-z0-9-]+)@users\.noreply\.github\.com$")
 _GENERIC_LOCALPARTS = {
@@ -303,9 +306,20 @@ async def generate(
     """Full scan: revalidate every pending suggestion against current data,
     auto-merge pairs carrying an identity proof, then insert new pairs that
     score. Returns (created, removed, merged). Dismissed suggestions are
-    never resurrected, never deleted and never auto-merged."""
+    never resurrected, never deleted and never auto-merged.
+
+    Scoring covers every person, but heuristic suggestions only surface
+    when at least one side is visible on stats surfaces: a pair of two
+    hidden externals (fork history, excluded repos) is noise nobody will
+    ever act on. Identity proofs still merge regardless of visibility;
+    that silent path is what repairs hidden member duplicates."""
     views = await load_person_views(session)
     by_id = {v.id: v for v in views}
+    relevant = await membership.relevant_person_ids(session)
+
+    def surfaced(a_id: int, b_id: int) -> bool:
+        return relevant is None or a_id in relevant or b_id in relevant
+
     removed = 0
     certain_pairs: list[tuple[int, int]] = []
     pending = (
@@ -329,7 +343,9 @@ async def generate(
             # The merge below deletes this row along with every other
             # suggestion referencing either person.
             certain_pairs.append((row.person_a_id, row.person_b_id))
-        elif evidence.score < threshold:
+        elif evidence.score < threshold or not surfaced(
+            row.person_a_id, row.person_b_id
+        ):
             await session.delete(row)
             removed += 1
         else:
@@ -348,7 +364,7 @@ async def generate(
                 certain_pairs.append((a.id, b.id))
                 existing_pairs.add((low, high))
                 continue
-            if evidence.score < threshold:
+            if evidence.score < threshold or not surfaced(a.id, b.id):
                 continue
             session.add(
                 MergeSuggestion(
@@ -379,6 +395,7 @@ async def generate_for_person(
     me = next((v for v in views if v.id == person_id), None)
     if me is None:
         return 0
+    relevant = await membership.relevant_person_ids(session)
     existing_pairs = await _existing_pairs(session)
     created = 0
     for other in views:
@@ -386,6 +403,8 @@ async def generate_for_person(
             continue
         low, high = sorted((me.id, other.id))
         if (low, high) in existing_pairs:
+            continue
+        if relevant is not None and me.id not in relevant and other.id not in relevant:
             continue
         score, reasons = score_pair(me, other)
         if score < threshold:

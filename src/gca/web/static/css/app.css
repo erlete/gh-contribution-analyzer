@@ -100,7 +100,23 @@
 
   main { padding: var(--sp-06) var(--sp-06) var(--sp-09); }
 
-  .page-title { font-size: var(--type-heading-03-size); font-weight: var(--fw-regular); margin-bottom: var(--sp-05); }
+  .page-title {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-03);
+    flex-wrap: wrap;
+    font-size: var(--type-heading-03-size);
+    font-weight: var(--fw-regular);
+    margin-bottom: var(--sp-05);
+  }
+  /* Inline strip of mixed small pieces (tags, helper text, a compact
+     button) centered on one line, as under detail-page titles. */
+  .inline-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-03);
+    flex-wrap: wrap;
+  }
 
   /* ---- scope dropdown -------------------------------------------------- */
 
@@ -279,6 +295,25 @@
   table.data td.cell-actions .actions > form { flex: none; }
   table.data td.cell-actions button,
   table.data td.cell-actions .btn { min-width: var(--sp-11); }
+  /* Paired actions with variable labels (Keep X / Keep Y): split the cell
+     into equal columns so button edges align across rows; long labels
+     ellipsize and the title attribute carries the full text. */
+  .actions.even {
+    display: grid;
+    grid-auto-flow: column;
+    /* minmax(0, 1fr): a bare 1fr keeps its min-content floor, letting a
+       long label push the second column out of line across rows. */
+    grid-auto-columns: minmax(0, 1fr);
+    gap: var(--sp-03);
+  }
+  .actions.even > form { display: contents; }
+  .actions.even button { width: 100%; min-width: 0; padding: 0 var(--sp-03); }
+  .actions.even button > .truncate {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   /* ---- tags ------------------------------------------------------------ */
 
@@ -389,7 +424,13 @@
   /* ---- form fields (all custom, no native look anywhere) --------------- */
 
   form.stack { display: grid; gap: var(--sp-05); max-width: var(--form-max); }
-  .actions { display: flex; gap: var(--sp-03); align-items: center; flex-wrap: wrap; }
+  /* Bottom alignment keeps buttons level with the CONTROL row even when a
+     sibling field carries a label above it (the label would otherwise push
+     a center-aligned button into a visual step). Equal-height rows are
+     unaffected: their bottoms already coincide. */
+  .actions { display: flex; gap: var(--sp-03); align-items: flex-end; flex-wrap: wrap; }
+  .actions.nowrap { flex-wrap: nowrap; }
+  .actions.nowrap input { flex: 1; min-width: 0; }
 
   label.field { display: grid; gap: var(--sp-02); }
   label.field > .label, .field-label {

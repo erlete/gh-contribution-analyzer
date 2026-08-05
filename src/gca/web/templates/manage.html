@@ -9,8 +9,10 @@
   <p class="muted small mb-03">
     Merging moves every identity of the absorbed person onto the kept person,
     then deletes the absorbed person. The kept person keeps its display name.
-    Pairs proven by email evidence merge automatically during scans; only
-    heuristic matches wait here for your decision.
+    Pairs proven by identity evidence merge automatically during scans; only
+    heuristic matches involving at least one visible person wait here.
+    External identities whose activity lies only in excluded or fork
+    repositories never appear.
   </p>
   <form method="post" action="/manage/suggest/run" class="mb-05">
     <button type="submit" class="secondary">Scan for new suggestions</button>
@@ -31,14 +33,14 @@
       <td class="small helper">{{ (s.reasons or []) | join('; ') }}</td>
       <td class="num">{{ c.tag((s.score * 100) | round | int ~ "%", "blue", outline=True) }}</td>
       <td>
-        <div class="actions">
+        <div class="actions even">
           <form method="post" action="/manage/suggestions/{{ s.id }}/accept">
             <input type="hidden" name="keep" value="{{ s.person_a_id }}">
-            <button type="submit" class="small" title="Absorb {{ name_b }} into {{ name_a }}">Keep {{ name_a }}</button>
+            <button type="submit" class="small" title="Absorb {{ name_b }} into {{ name_a }}"><span class="truncate">Keep {{ name_a }}</span></button>
           </form>
           <form method="post" action="/manage/suggestions/{{ s.id }}/accept">
             <input type="hidden" name="keep" value="{{ s.person_b_id }}">
-            <button type="submit" class="small" title="Absorb {{ name_a }} into {{ name_b }}">Keep {{ name_b }}</button>
+            <button type="submit" class="small" title="Absorb {{ name_a }} into {{ name_b }}"><span class="truncate">Keep {{ name_b }}</span></button>
           </form>
         </div>
       </td>
@@ -96,7 +98,7 @@
         {% endfor %}
       </td>
       <td>
-        <form method="post" action="/manage/person/{{ p.id }}/rename" class="actions">
+        <form method="post" action="/manage/person/{{ p.id }}/rename" class="actions nowrap">
           <input type="text" name="display_name" value="{{ p.display_name }}" class="maxw-field" aria-label="New display name">
           <button type="submit" class="secondary">Save</button>
         </form>

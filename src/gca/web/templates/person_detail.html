@@ -3,13 +3,13 @@
 {% block title %}{{ person.display_name }}, Contribution Analyzer{% endblock %}
 {% block content %}
 <h1 class="page-title">{{ person.display_name }}</h1>
-<p class="muted small mb-05">
-  Identities:
+<div class="inline-row mb-05">
+  <span class="muted small">Identities</span>
   {% for identity in person.identities %}
   {{ c.tag(identity.login or identity.email or identity.name, "teal", outline=True) }}
   {% endfor %}
-  <a href="/manage">Manage identities</a>
-</p>
+  <a href="/manage" class="btn secondary small">Manage identities</a>
+</div>
 
 {% include "_rangebar.html" %}
 

@@ -282,6 +282,73 @@ async def test_scan_sees_members_only_hidden_persons(session: AsyncSession) -> N
     assert refreshed is not None and refreshed.person_id == member.person_id
 
 
+async def test_heuristic_pair_of_hidden_externals_never_surfaces(
+    session: AsyncSession,
+) -> None:
+    """Two persons hidden from stats (fork history, excluded repos, external
+    contributors) must not fill the suggestion queue with pairs nobody will
+    act on; stale pending rows between them are cleaned up too."""
+    from gca.models import Org
+    from gca.services import membership
+
+    org = Org(login="acme", members_only=True)
+    session.add(org)
+    await session.flush()
+    ext_a = await get_or_create_git_identity(
+        session, name="Foo External", email="jane.doe@x.io"
+    )
+    ext_b = await get_or_create_git_identity(
+        session, name="Bar Outsider", email="jane.doe@y.io"
+    )
+    session.add(
+        MergeSuggestion(
+            person_a_id=min(ext_a.person_id, ext_b.person_id),
+            person_b_id=max(ext_a.person_id, ext_b.person_id),
+            score=0.6,
+            reasons=["shared email local part jane.doe"],
+        )
+    )
+    await session.flush()
+    await membership.store_members(session, org.id, [("someoneelse", "N9")])
+
+    created, removed, merged = await suggest.generate(session)
+    assert created == 0
+    assert removed == 1
+    assert merged == 0
+    remaining = (
+        (await session.execute(suggest.sa.select(MergeSuggestion))).scalars().all()
+    )
+    assert remaining == []
+
+
+async def test_heuristic_pair_with_member_side_still_surfaces(
+    session: AsyncSession,
+) -> None:
+    """A member-linked person pairs with hidden duplicates even when the
+    member has no recorded activity yet."""
+    from gca.models import Org
+    from gca.services import membership
+
+    org = Org(login="acme", members_only=True)
+    session.add(org)
+    await session.flush()
+    member = await get_or_create_github_identity(session, login="janedoe")
+    member_git = await get_or_create_git_identity(
+        session, name="Janet", email="jane.doe@a.com"
+    )
+    await session.execute(
+        suggest.sa.update(Identity)
+        .where(Identity.id == member_git.id)
+        .values(person_id=member.person_id)
+    )
+    await get_or_create_git_identity(session, name="J Random", email="jane.doe@b.io")
+    await membership.store_members(session, org.id, [("janedoe", "N1")])
+
+    created, _, merged = await suggest.generate(session)
+    assert merged == 0
+    assert created == 1
+
+
 async def test_generate_removes_stale_pending(session: AsyncSession) -> None:
     alice = await get_or_create_git_identity(session, name="Alice", email="a@x.com")
     bob = await get_or_create_git_identity(session, name="Bob", email="b@y.com")

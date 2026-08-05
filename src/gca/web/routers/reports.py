@@ -112,7 +112,9 @@ async def reports_generate(
             person_ids=person_ids or None,
         )
         await session.commit()
-        message = f"{len(reports)} report(s) generated"
+        message = (
+            f"Report generated: {reports[0].title}" if reports else "Nothing generated"
+        )
     except Exception as exc:
         await session.rollback()
         message = f"Generation failed: {exc}"

@@ -1,0 +1,37 @@
+{% extends "report_base.html" %}
+{% import "_macros.html" as macros %}
+{% block body %}
+<div class="intro">{{ intro_line }}</div>
+
+<h2>Scope key numbers</h2>
+<div class="kpis">
+  <div class="kpi"><div class="v">{{ totals.commits | int_fmt }}</div><div class="l">Commits</div></div>
+  <div class="kpi"><div class="v">{{ totals.additions | int_fmt }}</div><div class="l">Lines added</div></div>
+  <div class="kpi"><div class="v">{{ totals.deletions | int_fmt }}</div><div class="l">Lines deleted</div></div>
+  <div class="kpi"><div class="v">{{ totals.churn_ratio | pct }}%</div><div class="l">Churn ratio</div></div>
+  <div class="kpi"><div class="v">{{ totals.significance | float_fmt }}</div><div class="l">Significance</div></div>
+  <div class="kpi"><div class="v">{{ totals.prs_merged | int_fmt }}</div><div class="l">PRs merged</div></div>
+  <div class="kpi"><div class="v">{{ totals.reviews | int_fmt }}</div><div class="l">Reviews</div></div>
+  <div class="kpi"><div class="v">{{ totals.active_people | int_fmt }}</div><div class="l">Active people</div></div>
+  <div class="kpi"><div class="v">{{ totals.active_repos | int_fmt }}</div><div class="l">Active repos</div></div>
+</div>
+
+<h2>Table of contents</h2>
+<ol class="toc">
+  {% for s in sections %}
+  <li><a href="#{{ s.anchor }}">{{ s.heading }}</a></li>
+  {% endfor %}
+</ol>
+
+{% for s in sections %}
+<section class="section" id="{{ s.anchor }}">
+  <h2 class="section-title">{{ s.heading }}</h2>
+  {{ macros.narrative_box(s.narrative, s.narrative_ai) }}
+  {% if s.kind == 'person' %}
+    {% include "_section_person.html" %}
+  {% else %}
+    {% include "_section_repo.html" %}
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

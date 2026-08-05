@@ -1,5 +1,4 @@
-{% extends "report_base.html" %}
-{% block body %}
+{% set me = s.me %}
 <h2>Key numbers</h2>
 <div class="kpis">
   <div class="kpi"><div class="v">{{ me.commits | int_fmt }}</div><div class="l">Commits</div></div>
@@ -12,10 +11,11 @@
   <div class="kpi"><div class="v">{{ me.reviews | int_fmt }}</div><div class="l">Reviews</div></div>
 </div>
 
+{% if population %}
 <h2>Percentile position (population {{ population }})</h2>
 <table>
   <tr><th>Metric</th><th class="num">Value</th><th>Percentile</th></tr>
-  {% for metric, label, value in metric_rows %}
+  {% for metric, label, value in s.metric_rows %}
   <tr>
     <td>{{ label }}</td>
     <td class="num">{{ value }}</td>
@@ -26,10 +26,11 @@
   </tr>
   {% endfor %}
 </table>
+{% endif %}
 
-{% if chart %}
+{% if s.chart %}
 <h2>Activity trend</h2>
-<img class="chart" src="{{ chart }}" alt="trend">
+<img class="chart" src="{{ s.chart }}" alt="trend">
 {% endif %}
 
 <h2>Per-repository split</h2>
@@ -39,7 +40,7 @@
     <th class="num">Churn</th><th class="num">Significance</th>
     <th class="num">PRs merged</th><th class="num">Reviews</th>
   </tr>
-  {% for r in split %}
+  {% for r in s.split %}
   <tr>
     <td>{{ r.org_login }}/{{ r.name }}</td>
     <td class="num">{{ r.commits | int_fmt }}</td>
@@ -49,6 +50,7 @@
     <td class="num">{{ r.prs_merged | int_fmt }}</td>
     <td class="num">{{ r.reviews | int_fmt }}</td>
   </tr>
+  {% else %}
+  <tr><td colspan="7">No repository activity in this period.</td></tr>
   {% endfor %}
 </table>
-{% endblock %}

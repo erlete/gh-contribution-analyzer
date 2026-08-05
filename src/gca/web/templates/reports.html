@@ -3,71 +3,78 @@
 {% block content %}
 <h1>Reports</h1>
 
-<div class="grid2">
-  <div class="panel">
-    <h2>Generate on demand</h2>
-    <p class="muted small">Uses the current org scope ({{ scope.label }}). Leave dates empty for full history, leave selections empty for all subjects.</p>
-    <form method="post" action="/reports/generate" class="stack" style="max-width:none">
+<div class="panel">
+  <h2>Generate on demand</h2>
+  <p class="muted small">
+    Uses the current org scope ({{ scope.label }}). Individual kinds produce a
+    single document: introduction, table of contents, then one analyzed
+    section per person or repository. Leave dates empty for full history,
+    leave selections empty for all subjects.
+  </p>
+  <form method="post" action="/reports/generate">
+    <div class="actions" style="margin-bottom:0.8rem">
       <label class="field">Report kind
         <select name="kind">
           <option value="overview">General overview</option>
-          <option value="person">Individualized per person</option>
-          <option value="repo">Individualized per repository</option>
+          <option value="person">Individual people (one document, a section per person)</option>
+          <option value="repo">Individual repositories (one document, a section per repo)</option>
         </select>
       </label>
-      <div class="actions">
-        <label class="field">From <input type="date" name="date_from"></label>
-        <label class="field">To <input type="date" name="date_to"></label>
-      </div>
+      <label class="field">From <input type="date" name="date_from"></label>
+      <label class="field">To <input type="date" name="date_to"></label>
+    </div>
+    <div class="grid2">
       <label class="field">Limit to repositories
-        <select name="repo_ids" multiple size="5">
+        <select name="repo_ids" multiple size="8">
           {% for repo, login in repos %}
           <option value="{{ repo.id }}">{{ login }}/{{ repo.name }}</option>
           {% endfor %}
         </select>
       </label>
       <label class="field">Limit to people
-        <select name="person_ids" multiple size="5">
+        <select name="person_ids" multiple size="8">
           {% for p in persons %}
           <option value="{{ p.id }}">{{ p.display_name }}</option>
           {% endfor %}
         </select>
       </label>
+    </div>
+    <div class="actions" style="margin-top:0.8rem">
       <button type="submit">Generate</button>
-    </form>
-  </div>
+    </div>
+  </form>
+</div>
 
-  <div class="panel">
-    <h2>Periodic schedules</h2>
-    <p class="muted small">
-      Enabled combinations generate at period close and email every active
-      recipient. Nothing is generated retroactively.
-    </p>
-    <form method="post" action="/reports/schedules">
-      <table>
-        <tr>
-          <th>Period</th>
-          {% for rk in report_kinds %}<th>{{ rk }}</th>{% endfor %}
-        </tr>
-        {% for pk in period_kinds %}
-        <tr>
-          <td>{{ pk.replace('_', ' ') }}</td>
-          {% for rk in report_kinds %}
-          {% set s = schedules.get((pk, rk)) %}
-          <td>
-            <input type="checkbox" name="sched-{{ pk }}-{{ rk }}"
-                   {{ 'checked' if s and s.enabled }}>
-          </td>
-          {% endfor %}
-        </tr>
+<div class="panel">
+  <h2>Periodic schedules</h2>
+  <p class="muted small">
+    Enabled combinations generate at period close and email every active
+    recipient. Nothing is generated retroactively.
+  </p>
+  <form method="post" action="/reports/schedules">
+    <table style="max-width:640px">
+      <tr>
+        <th>Period</th>
+        {% for rk in report_kinds %}<th>{{ rk }}</th>{% endfor %}
+      </tr>
+      {% for pk in period_kinds %}
+      <tr>
+        <td>{{ pk.replace('_', ' ') }}</td>
+        {% for rk in report_kinds %}
+        {% set s = schedules.get((pk, rk)) %}
+        <td>
+          <input type="checkbox" name="sched-{{ pk }}-{{ rk }}"
+                 {{ 'checked' if s and s.enabled }}>
+        </td>
         {% endfor %}
-      </table>
-      <div class="actions" style="margin-top:0.6rem">
-        <button type="submit">Save schedules</button>
-        <a href="/settings" class="muted small">Manage recipients in settings</a>
-      </div>
-    </form>
-  </div>
+      </tr>
+      {% endfor %}
+    </table>
+    <div class="actions" style="margin-top:0.6rem">
+      <button type="submit">Save schedules</button>
+      <a href="/settings" class="muted small">Manage recipients in settings</a>
+    </div>
+  </form>
 </div>
 
 <div class="panel">

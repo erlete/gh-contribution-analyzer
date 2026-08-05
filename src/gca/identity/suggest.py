@@ -1,4 +1,4 @@
-"""Merge suggestion scoring and generation.
+"""Merge suggestion scoring, generation and trivial auto-merges.
 
 Signals, strongest first:
 - identical email on both persons
@@ -6,6 +6,12 @@ Signals, strongest first:
 - identical email local part (ignoring generic mailbox names)
 - normalized full-name similarity
 - login equal to a name with spaces removed
+
+The first two signals are identity proofs (GitHub issued that noreply
+address for that account; two identities writing from the same mailbox are
+the same human): pairs carrying one are merged automatically during scans
+instead of waiting in the suggestion queue. Dismissed pairs are never
+auto-merged; a human already said no.
 """
 
 import re
@@ -39,6 +45,8 @@ _GENERIC_LOCALPARTS = {
 }
 SUGGESTION_THRESHOLD = 0.55
 SHARED_NAME_OWNER_CAP = 2
+# Signal weights at or above this value are identity proofs, not heuristics.
+CERTAIN_SIGNAL_WEIGHT = 0.95
 
 
 @dataclass
@@ -48,6 +56,13 @@ class PersonView:
     names: set[str] = field(default_factory=set)
     emails: set[str] = field(default_factory=set)
     logins: set[str] = field(default_factory=set)
+
+
+@dataclass
+class PairEvidence:
+    score: float
+    reasons: list[str]
+    certain: bool
 
 
 def _noreply_login(email: str) -> str | None:
@@ -72,6 +87,11 @@ def _name_similarity(a: PersonView, b: PersonView) -> float:
 
 
 def score_pair(a: PersonView, b: PersonView) -> tuple[float, list[str]]:
+    evidence = evaluate_pair(a, b)
+    return evidence.score, evidence.reasons
+
+
+def evaluate_pair(a: PersonView, b: PersonView) -> PairEvidence:
     contributions: list[tuple[float, str]] = []
 
     shared_emails = {e for e in a.emails & b.emails if e and _noreply_login(e) is None}
@@ -107,13 +127,14 @@ def score_pair(a: PersonView, b: PersonView) -> tuple[float, list[str]]:
         contributions.append((0.4, "login matches name"))
 
     if not contributions:
-        return 0.0, []
+        return PairEvidence(score=0.0, reasons=[], certain=False)
     score = 1.0
     for value, _ in contributions:
         score *= 1.0 - value
     score = 1.0 - score
     reasons = [reason for _, reason in sorted(contributions, reverse=True)][:5]
-    return min(score, 1.0), reasons
+    certain = any(value >= CERTAIN_SIGNAL_WEIGHT for value, _ in contributions)
+    return PairEvidence(score=min(score, 1.0), reasons=reasons, certain=certain)
 
 
 async def load_person_views(session: AsyncSession) -> list[PersonView]:
@@ -178,15 +199,65 @@ async def _existing_pairs(session: AsyncSession) -> set[tuple[int, int]]:
     }
 
 
+def _choose_survivor(a: PersonView, b: PersonView) -> tuple[PersonView, PersonView]:
+    """Pick (target, source) for an automatic merge.
+
+    Priority: the person holding a GitHub login identity (the real account),
+    then the one whose display name looks like a human full name, then the
+    one with more consolidated evidence, then the older person."""
+
+    def rank(view: PersonView) -> tuple[int, int, int, int]:
+        return (
+            1 if view.logins else 0,
+            1 if " " in view.display_name.strip() else 0,
+            len(view.emails) + len(view.logins),
+            -view.id,
+        )
+
+    return (a, b) if rank(a) >= rank(b) else (b, a)
+
+
+async def _auto_merge(
+    session: AsyncSession,
+    by_id: dict[int, PersonView],
+    pairs: list[tuple[int, int]],
+) -> int:
+    """Execute queued certain merges, following prior merges transitively."""
+    from gca.identity.merge import merge_persons
+
+    redirect: dict[int, int] = {}
+
+    def resolve(person_id: int) -> int:
+        while person_id in redirect:
+            person_id = redirect[person_id]
+        return person_id
+
+    merged = 0
+    for raw_a, raw_b in pairs:
+        a_id, b_id = resolve(raw_a), resolve(raw_b)
+        if a_id == b_id:
+            continue
+        view_a, view_b = by_id.get(a_id), by_id.get(b_id)
+        if view_a is None or view_b is None:
+            continue
+        target, source = _choose_survivor(view_a, view_b)
+        await merge_persons(session, target.id, source.id)
+        redirect[source.id] = target.id
+        merged += 1
+    return merged
+
+
 async def generate(
     session: AsyncSession, threshold: float = SUGGESTION_THRESHOLD
-) -> tuple[int, int]:
+) -> tuple[int, int, int]:
     """Full scan: revalidate every pending suggestion against current data,
-    then insert new pairs that score. Returns (created, removed). Dismissed
-    suggestions are never resurrected and never deleted."""
+    auto-merge pairs carrying an identity proof, then insert new pairs that
+    score. Returns (created, removed, merged). Dismissed suggestions are
+    never resurrected, never deleted and never auto-merged."""
     views = await load_person_views(session)
     by_id = {v.id: v for v in views}
     removed = 0
+    certain_pairs: list[tuple[int, int]] = []
     pending = (
         (
             await session.execute(
@@ -199,13 +270,21 @@ async def generate(
     for row in pending:
         a = by_id.get(row.person_a_id)
         b = by_id.get(row.person_b_id)
-        score, reasons = score_pair(a, b) if a and b else (0.0, [])
-        if score < threshold:
+        evidence = (
+            evaluate_pair(a, b)
+            if a and b
+            else PairEvidence(score=0.0, reasons=[], certain=False)
+        )
+        if evidence.certain:
+            # The merge below deletes this row along with every other
+            # suggestion referencing either person.
+            certain_pairs.append((row.person_a_id, row.person_b_id))
+        elif evidence.score < threshold:
             await session.delete(row)
             removed += 1
         else:
-            row.score = round(score, 4)
-            row.reasons = reasons
+            row.score = round(evidence.score, 4)
+            row.reasons = evidence.reasons
     await session.flush()
     existing_pairs = await _existing_pairs(session)
     created = 0
@@ -214,21 +293,26 @@ async def generate(
             low, high = sorted((a.id, b.id))
             if (low, high) in existing_pairs:
                 continue
-            score, reasons = score_pair(a, b)
-            if score < threshold:
+            evidence = evaluate_pair(a, b)
+            if evidence.certain:
+                certain_pairs.append((a.id, b.id))
+                existing_pairs.add((low, high))
+                continue
+            if evidence.score < threshold:
                 continue
             session.add(
                 MergeSuggestion(
                     person_a_id=low,
                     person_b_id=high,
-                    score=round(score, 4),
-                    reasons=reasons,
+                    score=round(evidence.score, 4),
+                    reasons=evidence.reasons,
                 )
             )
             existing_pairs.add((low, high))
             created += 1
     await session.flush()
-    return created, removed
+    merged = await _auto_merge(session, by_id, certain_pairs)
+    return created, removed, merged
 
 
 async def generate_for_person(

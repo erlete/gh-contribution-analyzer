@@ -109,9 +109,12 @@ async def _cmd_sync(login: str | None) -> int:
             print(f"  error: {error}")
             exit_code = 1
     async with factory() as session:
-        created, removed = await suggest.generate(session)
+        created, removed, merged = await suggest.generate(session)
         await session.commit()
-        print(f"merge suggestions: {created} created, {removed} stale removed")
+        print(
+            f"merge suggestions: {created} created, {removed} stale removed,"
+            f" {merged} auto-merged"
+        )
     return exit_code
 
 
@@ -153,9 +156,12 @@ async def _cmd_report_list() -> int:
 async def _cmd_suggest() -> int:
     factory = get_session_factory()
     async with factory() as session:
-        created, removed = await suggest.generate(session)
+        created, removed, merged = await suggest.generate(session)
         await session.commit()
-        print(f"{created} suggestions created, {removed} stale removed")
+        print(
+            f"{created} suggestions created, {removed} stale removed,"
+            f" {merged} auto-merged"
+        )
     return 0
 
 

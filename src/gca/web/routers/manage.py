@@ -70,10 +70,11 @@ async def manage_view(request: Request, session: SessionDep) -> Response:
 
 @router.post("/manage/suggest/run")
 async def run_suggestions(session: SessionDep) -> RedirectResponse:
-    created, removed = await suggest.generate(session)
+    created, removed, merged = await suggest.generate(session)
     await session.commit()
     return RedirectResponse(
-        f"/manage?msg={created} new suggestions, {removed} stale removed",
+        f"/manage?msg={created} new suggestions, {removed} stale removed,"
+        f" {merged} trivial pairs merged automatically",
         status_code=303,
     )
 

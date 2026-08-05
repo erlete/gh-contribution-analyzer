@@ -234,11 +234,14 @@ async def process_report_queue(factory: SessionFactory) -> None:
 
 async def generate_suggestions_job(factory: SessionFactory) -> None:
     async with factory() as session:
-        created, removed = await suggest.generate(session)
+        created, removed, merged = await suggest.generate(session)
         await session.commit()
-        if created or removed:
+        if created or removed or merged:
             log.info(
-                "merge suggestions: %s created, %s stale removed", created, removed
+                "merge suggestions: %s created, %s stale removed, %s auto-merged",
+                created,
+                removed,
+                merged,
             )
 
 

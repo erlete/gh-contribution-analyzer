@@ -28,6 +28,22 @@ light and dark variants, the monochrome and divergent quantize ramps, and
 the legend area colors. Upstream leaves two literals inline (`#b28600`
 yellow, `#8a3800` / `#ba4e00` orange) pending Carbon color additions.
 
+Component and motion data, same retrieval date:
+
+- `carbon/motion.json`: durations and easing curves from `@carbon/motion`
+  11.49.0 (https://registry.npmjs.org/@carbon/motion/-/motion-11.49.0.tgz).
+- `carbon/button-tokens.json`, `carbon/tag-tokens.json`,
+  `carbon/notification-tokens.json`, `carbon/status-tokens.json`: the g-90
+  entries of `scss/generated/_*-tokens.scss` inside `@carbon/themes` 11.78.0
+  (raw button SCSS kept as `carbon/button-tokens.scss`). The
+  `button-disabled` value `rgba(141, 141, 141, 0.3)` appears only in the raw
+  SCSS because the extractor skips parenthesized values.
+- Structural facts referenced by `design/tokens.json` but not stored as
+  files: tag pill radius 16px (`@carbon/styles` 1.112.0
+  `scss/components/tag/_tag.scss`), focus outline 2px
+  (`scss/utilities/_focus-outline.scss`), button height 3rem and border
+  radius 0 (`scss/components/button/_vars.scss`).
+
 All Carbon packages are Apache-2.0.
 
 ## IBM Plex fonts

@@ -1,0 +1,11 @@
+{
+  "notification-action-tertiary-inverse": "#0f62fe",
+  "notification-action-tertiary-inverse-active": "#002d9c",
+  "notification-action-tertiary-inverse-hover": "#0050e6",
+  "notification-action-tertiary-inverse-text": "#ffffff",
+  "notification-action-tertiary-inverse-text-on-color-disabled": "#8d8d8d",
+  "notification-background-error": "#393939",
+  "notification-background-info": "#393939",
+  "notification-background-success": "#393939",
+  "notification-background-warning": "#393939"
+}

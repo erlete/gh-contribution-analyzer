@@ -94,7 +94,9 @@ async def test_ai_instructions_roundtrip(session: AsyncSession) -> None:
     store = SettingsStore(session)
     assert await store.ai_instructions() == {
         "dashboard": "",
+        "people": "",
         "person": "",
+        "repos": "",
         "repo": "",
         "report": "",
     }
@@ -105,3 +107,24 @@ async def test_ai_instructions_roundtrip(session: AsyncSession) -> None:
     assert values["dashboard"] == "focus on totals"
     assert values["person"] == ""
     assert "bogus" not in values
+
+
+async def test_ai_instructions_group_and_individual_are_distinct(
+    session: AsyncSession,
+) -> None:
+    """The People/Repos group views and the per-person/per-repo views keep
+    separate instruction buckets."""
+    store = SettingsStore(session)
+    await store.set_ai_instructions(
+        {
+            "people": "group tone",
+            "person": "individual tone",
+            "repos": "portfolio tone",
+            "repo": "repository tone",
+        }
+    )
+    values = await store.ai_instructions()
+    assert values["people"] == "group tone"
+    assert values["person"] == "individual tone"
+    assert values["repos"] == "portfolio tone"
+    assert values["repo"] == "repository tone"

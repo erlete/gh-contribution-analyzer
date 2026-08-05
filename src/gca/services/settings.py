@@ -19,7 +19,9 @@ AI_KEY = "ai"
 AI_INSTRUCTIONS_KEY = "ai_instructions"
 MAIL_STATUS_KEY = "mail_status"
 
-INSIGHT_AREAS = ("dashboard", "person", "repo", "report")
+# Instruction buckets: group views (people, repos) are separate from the
+# individual views (person, repo) so guidance never mixes across the two.
+INSIGHT_AREAS = ("dashboard", "people", "person", "repos", "repo", "report")
 
 
 class GraphMailConfig(BaseModel):

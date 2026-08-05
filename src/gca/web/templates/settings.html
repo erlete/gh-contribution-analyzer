@@ -83,10 +83,12 @@
   </p>
   <form method="post" action="/settings/ai/instructions">
     <div class="grid2">
-      {{ c.textarea_field("dashboard", "Dashboard and list overviews", value=ai_instructions.get('dashboard', ''), rows=3, placeholder="Extra guidance for overview insights") }}
-      {{ c.textarea_field("person", "Person views", value=ai_instructions.get('person', ''), rows=3, placeholder="Extra guidance for per-person insights") }}
-      {{ c.textarea_field("repo", "Repository views", value=ai_instructions.get('repo', ''), rows=3, placeholder="Extra guidance for per-repository insights") }}
+      {{ c.textarea_field("dashboard", "Dashboard", value=ai_instructions.get('dashboard', ''), rows=3, placeholder="Extra guidance for the dashboard overview") }}
       {{ c.textarea_field("report", "Reports", value=ai_instructions.get('report', ''), rows=3, placeholder="Extra guidance for PDF report narratives") }}
+      {{ c.textarea_field("people", "People overview (group)", value=ai_instructions.get('people', ''), rows=3, placeholder="Extra guidance for the People page group insight") }}
+      {{ c.textarea_field("person", "Individual people", value=ai_instructions.get('person', ''), rows=3, placeholder="Extra guidance for per-person insights") }}
+      {{ c.textarea_field("repos", "Repositories overview (group)", value=ai_instructions.get('repos', ''), rows=3, placeholder="Extra guidance for the Repositories page group insight") }}
+      {{ c.textarea_field("repo", "Individual repositories", value=ai_instructions.get('repo', ''), rows=3, placeholder="Extra guidance for per-repository insights") }}
     </div>
     <div class="actions mt-03">
       <button type="submit">Save instructions</button>

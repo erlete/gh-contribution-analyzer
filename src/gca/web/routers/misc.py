@@ -285,7 +285,7 @@ async def insight_partial(
             all_time=all_time,
         )
         area = "person"
-        subject_key = f":p{person_id}"
+        view_name = f"person:p{person_id}"
     elif view == "repo" and repo_id.isdigit():
         repo = await session.get(Repo, int(repo_id))
         org = await session.get(Org, repo.org_id) if repo else None
@@ -302,10 +302,12 @@ async def insight_partial(
             all_time=all_time,
         )
         area = "repo"
-        subject_key = f":r{repo_id}"
+        view_name = f"repo:r{repo_id}"
     else:
-        # dashboard plus the repos and people list pages: an overall status
+        # Dashboard plus the people and repos list pages: an overall status
         # of the selected window, always present, recomputed per window.
+        # The list pages are group views with their own instruction areas,
+        # distinct from the individual person and repo areas.
         context = await insight_context.dashboard_context(
             session,
             orgs=scope.selected_ids,
@@ -315,18 +317,17 @@ async def insight_partial(
             period_label=period.label,
             all_time=all_time,
         )
-        area = "dashboard"
-        subject_key = "" if view == "dashboard" else f":{view}"
+        area = view if view in ("people", "repos") else "dashboard"
+        view_name = area
 
     result = await insight_for(
         session,
-        view=f"{view}{subject_key}"
-        if view in ("person", "repo")
-        else f"dashboard{subject_key}",
+        view=view_name,
         scope_key=scope.key,
         period_key=period.key,
         context=context,
         area=area,
+        kind="dashboard" if area in ("dashboard", "people", "repos") else None,
     )
     await session.commit()
     return templates.TemplateResponse(

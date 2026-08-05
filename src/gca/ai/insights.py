@@ -54,6 +54,23 @@ _AREA_BRIEFS = {
         "activity picture, one outlier if any, and notable arrivals or "
         "departures when turnover data is present."
     ),
+    "people": (
+        "Write a tight overview of the contributor population as a group, "
+        "at most 120 words: how the work is distributed between the "
+        "leaders, the middle and those trailing, concentration risk, "
+        "review engagement across the group, and notable arrivals or "
+        "departures when turnover data is present. Name people only as "
+        "leaders or notable movers; individual evaluation belongs to the "
+        "per-person view."
+    ),
+    "repos": (
+        "Write a tight overview of the repository portfolio as a group, "
+        "at most 120 words: where activity concentrates, which "
+        "repositories gained or lost momentum when previous-period data "
+        "is present, how contributors spread across repositories, and "
+        "anything unusual such as a busy repository going quiet. "
+        "Individual evaluation belongs to the per-repository view."
+    ),
     "person": (
         "Evaluate this person's period in at most 180 words: activity "
         "level (trend and rank movement versus the previous period when "
@@ -170,7 +187,9 @@ async def invalidate_view(session: AsyncSession, view: str) -> int:
 # deleting them makes the regeneration explicit and prunes dead cache.
 _AREA_VIEW_PREFIXES = {
     "dashboard": ("dashboard",),
+    "people": ("people",),
     "person": ("person:",),
+    "repos": ("repos",),
     "repo": ("repo:",),
     "report": ("report:",),
 }

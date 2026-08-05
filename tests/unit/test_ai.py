@@ -262,3 +262,25 @@ def test_cache_key_changes_with_context() -> None:
     assert len(base) == 64
     assert base == same
     assert base != other
+
+
+async def test_invalidate_area_keeps_group_and_individual_separate(
+    session: AsyncSession,
+) -> None:
+    """Editing the People group instructions must not discard per-person
+    cache rows, and vice versa; same for repos versus repo."""
+    session.add_all(
+        [
+            Insight(cache_key="g1", view="people", content="group"),
+            Insight(cache_key="i1", view="person:p7", content="individual"),
+            Insight(cache_key="g2", view="repos", content="portfolio"),
+            Insight(cache_key="i2", view="repo:r7", content="repository"),
+        ]
+    )
+    await session.flush()
+    assert await insights.invalidate_area(session, "people") == 1
+    assert await insights.invalidate_area(session, "repo") == 1
+    remaining = {
+        row.view for row in (await session.execute(sa.select(Insight.view))).all()
+    }
+    assert remaining == {"person:p7", "repos"}

@@ -16,12 +16,14 @@ reports with AI-generated insights. Single admin user, English only.
   and scope
 - Server-rendered admin dashboard with activity trends, repo and person detail views
 - PDF reports, both periodic (week, month, trimester, quarter, half year, year) and
-  on demand with custom ranges
+  on demand with custom ranges; individual reports are single documents with an
+  introduction, a table of contents and one analyzed section per person or repo
 - Scheduled email delivery via Microsoft Graph or SMTP, with graceful degradation
   when mail is unconfigured or failing (reports are stored unsent and can be
   re-dispatched later)
-- Optional AI insights through any OpenAI-compatible endpoint; panels hide when
-  unconfigured
+- AI insights through any OpenAI-compatible endpoint, with per-area operator
+  instructions; when AI is off or failing, every insight area falls back to plain
+  data statements, and AI-generated text is marked with an AI chip
 - Org, repository and person filters (whitelist or blacklist per org)
 - Person identity merge and unmerge with automatic merge suggestions
 

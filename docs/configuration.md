@@ -3,7 +3,7 @@
 ## Philosophy
 
 `.env` carries deployment internals only (database, secret key, edge proxy). The
-`MAIL_*`, `SMTP_*` and `AI_*` environment values are seeds: on first boot they are
+`MAIL_*` and `AI_*` environment values are seeds: on first boot they are
 imported into the settings table, and only for keys that do not exist yet. From then
 on the in-app settings screen is the single authority; changing the environment
 later has no effect on already-seeded keys. All secrets stored in the database
@@ -40,10 +40,11 @@ never consumes API quota.
 
 ## Repository filters
 
-Per org, `repo_filter_mode` is one of `all`, `whitelist` or `blacklist`. Repository
-names are entered one per line on the orgs page. With no names listed and mode
-`all`, every repository is included. Changing filters immediately recomputes each
-repo's inclusion flag.
+Per org, `repo_filter_mode` is one of `all`, `whitelist` or `blacklist`. On the
+orgs page, repositories are picked from a dropdown of the org's known repos and
+collected into a removable list. With nothing listed and mode `all`, every
+repository is included. Changing filters immediately recomputes each repo's
+inclusion flag.
 
 ## Person filters
 
@@ -68,7 +69,14 @@ first:
 - login equal to a name with spaces removed
 
 Signals combine probabilistically into a score; pairs scoring at least 0.55 become
-pending suggestions that you accept or dismiss in the people screen.
+pending suggestions on the identity screen. Each suggestion offers one button per
+direction ("Keep X" absorbs the other person into X), so the survivor is always
+explicit; the kept person retains its display name. After any merge, the survivor
+is rescored against everyone else immediately, so related suggestions that were
+cleared by the merge reappear without waiting for the next scan.
+
+Commits are attributed to their git author only; `Co-authored-by` trailers are
+not parsed (see docs/metrics.md).
 
 ## Mail
 
@@ -88,9 +96,10 @@ attachments over 3 MB switch to an upload session automatically.
 
 ### SMTP
 
-Host, port, optional username and password, STARTTLS toggle and sender address. In
-development the compose overlay points SMTP at Mailpit, so every mail is captured
-at http://localhost:8025 instead of being delivered.
+Host, port, optional username and password, STARTTLS toggle and sender address.
+SMTP has no environment seeds: it is configured on the settings screen only. In
+development, point it at Mailpit (host `mailpit`, port `1025`, STARTTLS off) so
+every mail is captured at http://localhost:8025 instead of being delivered.
 
 ### Test send and degradation
 
@@ -102,11 +111,26 @@ re-dispatched.
 ## AI insights
 
 Configure an OpenAI-compatible endpoint: base URL, optional bearer key, and model
-name. The insight service assembles a compact statistical context for the current
-view, scope and period, requests a short English narrative, and caches the result
-in the database keyed by view, org scope and period, so repeated visits do not
-re-query the model. When AI is unconfigured or erroring, insight panels are hidden
-and reports render without narrative sections.
+name. The insight service assembles a wide statistical context for the current
+view, scope and period (totals, leaderboards, percentiles, per-repo splits),
+requests a short English narrative, and caches the result in the database keyed
+by view, org scope, period, data and instructions, so repeated visits do not
+re-query the model.
+
+Every insight area always renders. AI-generated text carries a brain AI chip in
+the top right corner, in the web views and in the PDF reports. When AI is
+unconfigured or a call fails, the same area shows deterministic data statements
+built from the same context, without the chip, so the structure of every page
+and report is identical either way.
+
+The settings screen also holds per-area generation instructions (dashboard,
+person views, repository views, reports). Whatever is written there is appended
+to the AI prompt for that area, for example "highlight review activity" or
+"write in a formal tone". Instructions are part of the cache key: saving new
+ones regenerates affected insights on the next view.
+
+Large combined report documents cap AI narrative calls at 40 sections; beyond
+that, sections use the fallback statements so generation time stays bounded.
 
 ## Report schedules
 
@@ -120,6 +144,12 @@ Period kinds: `week`, `month`, `trimester`, `quarter`, `half_year`, `year`.
 | quarter | Calendar quarter (3 months) |
 | half_year | Jan-Jun and Jul-Dec |
 | year | Calendar year |
+
+Report kinds: `overview` is one document over the whole scope. `person` and
+`repo` also produce one document each: an introduction with the scope's key
+numbers, a table of contents with page numbers, then one analyzed section per
+person or repository (key numbers, percentile position, activity trend,
+splits, narrative).
 
 Periodic reports are generated only when a period closes: a daily watcher looks at
 the most recent fully closed period per enabled schedule and a job ledger

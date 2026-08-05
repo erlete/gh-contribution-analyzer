@@ -28,7 +28,7 @@ docker compose up -d
 ## Environment variables
 
 All variables live in `.env`, grouped as in `.env.example`. Operational settings
-(org tokens, recipients, schedules) are managed in-app; the `MAIL_*`, `SMTP_*` and
+(org tokens, recipients, schedules) are managed in-app; the `MAIL_*` and
 `AI_*` values only seed initial defaults on first boot and can be changed from the
 settings screen afterwards.
 
@@ -83,19 +83,9 @@ and admin consent. Seeds the Graph backend on first boot only.
 | `MAIL_AZURE_TENANT_ID` | Entra tenant id. |
 | `MAIL_SENDER_ADDRESS` | Mailbox to send as, e.g. `noreply@example.com`. |
 
-### Mail seed: SMTP
-
-Alternative backend; the dev compose overlay points these at Mailpit. When both
-Graph and SMTP seeds are present, Graph wins.
-
-| Variable | Description |
-|---|---|
-| `SMTP_HOST` | SMTP server host. |
-| `SMTP_PORT` | SMTP port. Default `587`. |
-| `SMTP_USERNAME` | Optional username. |
-| `SMTP_PASSWORD` | Optional password. |
-| `SMTP_STARTTLS` | Use STARTTLS. Default `true`. |
-| `SMTP_SENDER_ADDRESS` | From address. |
+SMTP is the alternative mail backend and has no environment seeds: configure it
+on the settings screen (in dev, point it at Mailpit with host `mailpit`, port
+`1025`, STARTTLS off).
 
 ### AI seed: OpenAI-compatible endpoint
 

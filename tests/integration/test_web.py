@@ -130,7 +130,8 @@ async def test_full_flow_after_setup(client: httpx2.AsyncClient) -> None:
 
     insight = await client.get("/partials/insight?view=dashboard")
     assert insight.status_code == 200
-    assert insight.text == ""
+    assert "No recorded activity" in insight.text
+    assert "chip-ai" not in insight.text
 
     scope = await client.get("/scope?orgs=1&next=/repos")
     assert scope.status_code == 303

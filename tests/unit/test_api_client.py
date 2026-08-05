@@ -240,3 +240,56 @@ async def test_org_members_permission_error_is_explicit() -> None:
     async with _client(handler) as client:
         with pytest.raises(GitHubError, match="Members read permission"):
             await client.org_members("acme")
+
+
+async def test_commit_authors_batches_and_resolves() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        body = json.loads(request.content)
+        query = body["query"]
+        assert 'c0: repository(owner: $owner, name: "core")' in query
+        assert 'c1: repository(owner: $owner, name: "web")' in query
+        return _graphql_response(
+            {
+                "c0": {
+                    "object": {"author": {"user": {"login": "erlete-dlt", "id": "U_1"}}}
+                },
+                "c1": {"object": {"author": {"user": None}}},
+            }
+        )
+
+    async with _client(handler) as client:
+        resolved = await client.commit_authors(
+            "acme",
+            [
+                ("paulo@corp.com", "core", "a" * 40),
+                ("ghost@ext.org", "web", "b" * 40),
+            ],
+        )
+    assert resolved == {"paulo@corp.com": ("erlete-dlt", "U_1")}
+
+
+async def test_commit_authors_skips_invalid_lookups() -> None:
+    async with _client(lambda request: pytest.fail("no request expected")) as client:
+        resolved = await client.commit_authors(
+            "acme",
+            [
+                ("x@y.z", 'bad"name', "a" * 40),
+                ("x2@y.z", "core", "not-a-sha"),
+            ],
+        )
+    assert resolved == {}
+
+
+async def test_commit_authors_rest_fallback() -> None:
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        assert request.url.path == "/repos/acme/core/commits/" + "a" * 40
+        return httpx2.Response(
+            200, json={"author": {"login": "erlete-dlt", "node_id": "U_1"}}
+        )
+
+    async with _client(handler) as client:
+        client.use_rest = True
+        resolved = await client.commit_authors(
+            "acme", [("paulo@corp.com", "core", "a" * 40)]
+        )
+    assert resolved == {"paulo@corp.com": ("erlete-dlt", "U_1")}

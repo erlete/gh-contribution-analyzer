@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from gca.crypto import decrypt_str
+from gca.identity.attribution import reconcile_commit_attribution
 from gca.metrics.rollup import recompute_for_persons
 from gca.models import (
     CloneStatus,
@@ -40,6 +42,8 @@ from gca.sync.gitrepo import GitError, GitMirror, RawCommit, rmtree_robust
 from gca.sync.ingest import ingest_repo
 from gca.sync.prsync import upsert_pull_requests
 from gca.timeutil import ensure_utc
+
+log = logging.getLogger("gca.sync")
 
 DEFAULT_REPO_URL_TEMPLATE = "https://github.com/{org}/{name}.git"
 ClientFactory = Callable[[str], GitHubClient]
@@ -274,6 +278,28 @@ async def sync_org(
                 await session.commit()
         if fatal is not None:
             raise fatal
+
+        # Best effort: ask GitHub which accounts it attributes still-unlinked
+        # author emails to and merge the proven pairs. A failure here never
+        # degrades an otherwise successful sync.
+        try:
+            async with session_factory() as session:
+                attributed = await reconcile_commit_attribution(
+                    session, client, org_id=org_id, org_login=org_login
+                )
+                await session.commit()
+            if attributed:
+                log.info(
+                    "commit attribution merged %s persons for %s",
+                    attributed,
+                    org_login,
+                )
+        except Exception as exc:
+            log.warning(
+                "commit attribution reconciliation failed for %s: %s",
+                org_login,
+                exc,
+            )
 
         async with session_factory() as session:
             org = await session.get_one(

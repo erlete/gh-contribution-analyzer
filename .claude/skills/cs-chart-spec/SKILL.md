@@ -29,6 +29,14 @@ the registered `carbon-g90` theme. A ResizeObserver and an
   and `DIVERGENT[4]` (down/red) with per-bar `item_colors`.
 - Color is never the only channel: multi-series line charts get the
   dash-pattern cycle as the second channel (the renderers do this).
+  EXCEPTION by product decision: Research charts set `palette="wide"`,
+  which walks the full 14-color Carbon sequence with solid lines so
+  they never look like the dashboard's 2-3 color + dash charts. Both
+  renderers honor the flag; use "wide" for every research ChartSpec.
+- A y-axis name that survives suppression renders in the strip above
+  the plot where the legend lives; `render_echarts` adds a row of grid
+  headroom per occupant so they never overlap. Do not work around
+  collisions by blanking axis names.
 - ECharts 6 category `axisLabel` width/truncate is unreliable: truncate
   long labels SERVER-SIDE in the spec (22 chars + ellipsis).
 - Axis names equal to a series name are suppressed by `render_echarts`

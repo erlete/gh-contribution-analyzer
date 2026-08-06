@@ -22,6 +22,10 @@ class ChartSpec:
     kind: "line" (category x axis), "bar" (category x axis) or
     "hbar" (horizontal bars, categories on y).
     axes: y-axis titles (one entry per axis; two at most).
+    palette: "auto" sizes the Carbon categorical palette to the series
+    count and cycles dash patterns (the dashboard look); "wide" walks the
+    full 14-color sequence with solid lines so research charts read
+    differently from the core dashboards.
     """
 
     kind: str
@@ -32,3 +36,4 @@ class ChartSpec:
     description: str = ""
     max_ticks: int = 12
     zoom: bool = False
+    palette: str = "auto"

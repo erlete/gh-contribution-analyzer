@@ -36,7 +36,11 @@ def _ensure_style() -> None:
 
 def render_matplotlib(spec: ChartSpec) -> str:
     _ensure_style()
-    colors = palettes.categorical_for(len(spec.series))
+    if spec.palette == "wide":
+        sequence = palettes.CATEGORICAL[max(palettes.CATEGORICAL)]
+        colors = [sequence[i % len(sequence)] for i in range(len(spec.series))]
+    else:
+        colors = palettes.categorical_for(len(spec.series))
     fig, ax = plt.subplots(figsize=(8.6, 2.8))
     axes = [ax]
     if len(spec.axes) > 1 and any(s.axis > 0 for s in spec.series):
@@ -82,7 +86,11 @@ def render_matplotlib(spec: ChartSpec) -> str:
                     s.values,
                     color=color,
                     label=s.name,
-                    linestyle=_DASHES[line_index % len(_DASHES)],
+                    linestyle=(
+                        "solid"
+                        if spec.palette == "wide"
+                        else _DASHES[line_index % len(_DASHES)]
+                    ),
                 )
                 line_index += 1
         step = max(1, len(xs) // spec.max_ticks) if xs else 1

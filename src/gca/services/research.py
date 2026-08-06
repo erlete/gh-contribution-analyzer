@@ -20,7 +20,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from gca.charts import ChartSpec, Series
+from gca.charts import ChartSpec, Series, palettes
 from gca.models import Identity, Org, Person, PullRequest, Repo, Review
 from gca.services import stats
 
@@ -455,6 +455,7 @@ def _weekly_line_chart(
         axes=[axis],
         description=description,
         zoom=len(weeks) > 30,
+        palette="wide",
     )
 
 
@@ -902,6 +903,7 @@ async def _correlate_person_repo(ctx: _Ctx) -> BlockResult:
             f" {ctx.period_label}"
         ),
         zoom=len(weeks) > 30,
+        palette="wide",
     )
     facts = [
         f"{person_name} produced {_pct(presence)} of {repo_name}'s significance"
@@ -1232,6 +1234,7 @@ async def _rank(ctx: _Ctx) -> BlockResult:
         ]
         for position, i in enumerate(ordered)
     ]
+    sequence = palettes.CATEGORICAL[max(palettes.CATEGORICAL)]
     chart = ChartSpec(
         kind="hbar",
         labels=[
@@ -1242,10 +1245,15 @@ async def _rank(ctx: _Ctx) -> BlockResult:
                 name=metric_label,
                 values=[round(values.get(i, 0.0), 1) for i in ordered],
                 kind="bar",
+                item_colors=[
+                    sequence[position % len(sequence)]
+                    for position in range(len(ordered))
+                ],
             )
         ],
         axes=[metric_label],
         description=f"Custom ranking by {metric_label.lower()}, {ctx.period_label}",
+        palette="wide",
     )
     facts = [
         f"{names[ordered[0]]} tops this hand-picked set by"

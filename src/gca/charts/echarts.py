@@ -14,18 +14,26 @@ from gca.charts.spec import ChartSpec
 _DASHES = ["solid", "dashed", "dotted"]
 
 
+def _colors(spec: ChartSpec) -> list[str]:
+    if spec.palette == "wide":
+        sequence = palettes.CATEGORICAL[max(palettes.CATEGORICAL)]
+        return [sequence[i % len(sequence)] for i in range(len(spec.series))]
+    return palettes.categorical_for(len(spec.series))
+
+
 def render_echarts(spec: ChartSpec) -> dict[str, Any]:
+    legend_shown = len(spec.series) > 1
     option: dict[str, Any] = {
-        "color": palettes.categorical_for(len(spec.series)),
+        "color": _colors(spec),
         "aria": {"enabled": True, "label": {"description": spec.description}},
         "grid": {
             "left": 0,
             "right": 8,
-            "top": 36 if len(spec.series) > 1 else 16,
+            "top": 36 if legend_shown else 16,
             "bottom": 0,
             "containLabel": True,
         },
-        "legend": {"show": len(spec.series) > 1, "top": 0, "left": 0, "icon": "rect"},
+        "legend": {"show": legend_shown, "top": 0, "left": 0, "icon": "rect"},
         "tooltip": {"trigger": "axis"},
     }
     if spec.kind == "hbar":
@@ -66,11 +74,18 @@ def render_echarts(spec: ChartSpec) -> dict[str, Any]:
         axis: dict[str, Any] = {
             "type": "value",
             "name": "" if name in series_names else name,
+            # The name is centered on the axis line by default, which clips
+            # at the container edge; anchor it to grow inward instead.
+            "nameTextStyle": {"align": "left" if index == 0 else "right"},
         }
         if index > 0:
             axis["splitLine"] = {"show": False}
         y_axes.append(axis)
     option["yAxis"] = y_axes
+    # A surviving axis name renders in the strip above the plot, where the
+    # legend also lives: give each occupant its own row of headroom.
+    named_axis = any(axis["name"] for axis in y_axes)
+    option["grid"]["top"] = 16 + (20 if legend_shown else 0) + (20 if named_axis else 0)
     series: list[dict[str, Any]] = []
     line_index = 0
     for s in spec.series:
@@ -85,7 +100,12 @@ def render_echarts(spec: ChartSpec) -> dict[str, Any]:
                 entry["stack"] = s.stack
         else:
             entry["symbol"] = "none"
-            entry["lineStyle"] = {"type": _DASHES[line_index % len(_DASHES)]}
+            dash = (
+                "solid"
+                if spec.palette == "wide"
+                else _DASHES[line_index % len(_DASHES)]
+            )
+            entry["lineStyle"] = {"type": dash}
             line_index += 1
         series.append(entry)
     option["series"] = series

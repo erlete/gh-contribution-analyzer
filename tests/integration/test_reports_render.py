@@ -19,7 +19,7 @@ except Exception:  # OSError on hosts without Pango, not just ImportError
 
 
 def test_overview_pdf_renders() -> None:
-    from gca.reports.builder import render_pdf, trend_chart_data_uri
+    from gca.reports.builder import render_pdf, trend_chart_svg
 
     series = [
         DayPoint(
@@ -49,7 +49,7 @@ def test_overview_pdf_renders() -> None:
             "totals": Totals(commits=5, additions=100, active_people=1),
             "people": [person],
             "repos": [repo],
-            "chart": trend_chart_data_uri(series),
+            "chart": trend_chart_svg(series),
             "narrative": "A <b>test</b> narrative & sample.",
             "narrative_ai": True,
         },

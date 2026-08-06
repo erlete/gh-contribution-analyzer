@@ -13,6 +13,7 @@ from gca.db.engine import get_session
 from gca.mail.backend import MailDeliveryError
 from gca.mail.dispatch import send_test
 from gca.models import Recipient
+from gca.services import audit
 from gca.services.settings import (
     INSIGHT_AREAS,
     AIConfig,
@@ -81,6 +82,12 @@ async def settings_mail_graph(
             sender=sender.strip(),
         )
     )
+    await audit.record(
+        session,
+        kind="settings.mail",
+        subject="graph",
+        message="Microsoft Graph mail configured",
+    )
     await session.commit()
     return RedirectResponse(
         "/settings?msg=Microsoft Graph mail configured", status_code=303
@@ -112,6 +119,9 @@ async def settings_mail_smtp(
             sender=sender.strip(),
         )
     )
+    await audit.record(
+        session, kind="settings.mail", subject="smtp", message="SMTP mail configured"
+    )
     await session.commit()
     return RedirectResponse("/settings?msg=SMTP mail configured", status_code=303)
 
@@ -140,15 +150,27 @@ async def settings_ai(
     store = SettingsStore(session)
     if not url or not model:
         await store.clear_ai()
+        await audit.record(
+            session,
+            kind="settings.ai",
+            message="AI endpoint disabled, insight areas fall back to statements",
+        )
         await session.commit()
         return RedirectResponse(
-            "/settings?msg=AI disabled (insight panels hide)", status_code=303
+            "/settings?msg=AI disabled (insight areas fall back to data statements)",
+            status_code=303,
         )
     if not key:
         current = await store.ai_config()
         if current:
             key = current.key
     await store.set_ai(AIConfig(url=url.strip(), key=key.strip(), model=model.strip()))
+    await audit.record(
+        session,
+        kind="settings.ai",
+        subject=model.strip(),
+        message=f"AI endpoint configured with model {model.strip()}",
+    )
     await session.commit()
     return RedirectResponse("/settings?msg=AI endpoint configured", status_code=303)
 
@@ -169,9 +191,21 @@ async def settings_ai_instructions(
     )
     after = await store.ai_instructions()
     invalidated = 0
+    changed: list[str] = []
     for area in INSIGHT_AREAS:
         if before.get(area, "") != after.get(area, ""):
+            changed.append(area)
             invalidated += await invalidate_area(session, area)
+    if changed:
+        await audit.record(
+            session,
+            kind="settings.ai_instructions",
+            subject=", ".join(changed),
+            message=(
+                f"AI instructions changed for {', '.join(changed)};"
+                f" {invalidated} cached comments discarded"
+            ),
+        )
     await session.commit()
     return RedirectResponse(
         f"/settings?msg=AI instructions saved, {invalidated} cached comments"
@@ -211,6 +245,12 @@ async def recipients_add(
     ).scalar_one_or_none()
     if existing is None:
         session.add(Recipient(email=email, note=note.strip() or None))
+        await audit.record(
+            session,
+            kind="settings.recipient_added",
+            subject=email,
+            message=f"Report recipient {email} added",
+        )
         await session.commit()
         message = f"Recipient {email} added"
     else:
@@ -222,6 +262,15 @@ async def recipients_add(
 async def recipients_toggle(session: SessionDep, recipient_id: int) -> RedirectResponse:
     recipient = await session.get_one(Recipient, recipient_id)
     recipient.active = not recipient.active
+    await audit.record(
+        session,
+        kind="settings.recipient_toggled",
+        subject=recipient.email,
+        message=(
+            f"Recipient {recipient.email} "
+            f"{'activated' if recipient.active else 'deactivated'}"
+        ),
+    )
     await session.commit()
     return RedirectResponse("/settings?msg=Recipient updated", status_code=303)
 
@@ -230,6 +279,13 @@ async def recipients_toggle(session: SessionDep, recipient_id: int) -> RedirectR
 async def recipients_delete(session: SessionDep, recipient_id: int) -> RedirectResponse:
     recipient = await session.get(Recipient, recipient_id)
     if recipient is not None:
+        email = recipient.email
         await session.delete(recipient)
+        await audit.record(
+            session,
+            kind="settings.recipient_removed",
+            subject=email,
+            message=f"Report recipient {email} removed",
+        )
         await session.commit()
     return RedirectResponse("/settings?msg=Recipient removed", status_code=303)

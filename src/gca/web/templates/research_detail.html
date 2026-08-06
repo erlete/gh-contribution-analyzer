@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% import "_components.html" as c %}
+{% block title %}{{ research.name }}, Contribution Analyzer{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ research.name }}</h1>
+<div class="inline-row mb-05">
+  <form method="post" action="/research/{{ research.id }}/rename" class="actions nowrap">
+    <input type="text" name="name" value="{{ research.name }}" class="maxw-field"
+           aria-label="Rename research">
+    <button type="submit" class="secondary small">Rename</button>
+  </form>
+  <form method="post" action="/research/{{ research.id }}/delete">
+    <button type="submit" class="ghost small">Delete research</button>
+  </form>
+</div>
+
+{% include "_rangebar.html" %}
+
+{% for b in results %}
+{% set block_index = loop.index0 %}
+<div class="panel">
+  <div class="block-head">
+    <h2>{{ b.sentence }} {{ c.info(b.description) }}</h2>
+    <form method="post" action="/research/{{ research.id }}/blocks/{{ block_index }}/delete">
+      <button type="submit" class="ghost small">Remove block</button>
+    </form>
+  </div>
+  {% if b.error %}
+  <div class="banner warn">{{ b.error }}</div>
+  {% else %}
+  <div hx-get="/partials/insight?view=research&research_id={{ research.id }}&block={{ block_index }}&range={{ period.key }}"
+       hx-trigger="load" hx-swap="outerHTML">
+    <div class="insight"><div class="tag-line">Insight</div><div class="skeleton"></div></div>
+  </div>
+  {% for t in b.tables %}
+  {% call c.table(t.title, t.headers) %}
+    {% for row in t.rows %}
+    <tr>
+      {% for cell in row %}
+      <td class="{{ 'num' if cell.num }}"
+          {%- if cell.heat is not none and cell.heat > 0 %} style="background: color-mix(in srgb, var(--support-info) {{ (cell.heat * 55) | round | int }}%, transparent)"{% endif %}>
+        {%- if cell.link %}<a href="{{ cell.link }}">{{ cell.text }}</a>{% else %}{{ cell.text }}{% endif -%}
+      </td>
+      {% endfor %}
+    </tr>
+    {% else %}
+    {{ c.empty_row(t.headers | length, "Nothing to show in this period.") }}
+    {% endfor %}
+  {% endcall %}
+  {% endfor %}
+  {% for spec in b.charts %}
+  {{ c.chart("block-" ~ block_index ~ "-chart-" ~ loop.index0,
+             "/api/charts/research?research_id=" ~ research.id ~ "&block=" ~ block_index ~ "&chart=" ~ loop.index0 ~ "&range=" ~ period.key,
+             tall=True) }}
+  {% endfor %}
+  {% endif %}
+</div>
+{% else %}
+{{ c.empty_state("No blocks yet", "Add the first block below: pick an operation, fill its slots and it computes for the selected period.") }}
+{% endfor %}
+
+<div class="panel">
+  <h2>Add a block</h2>
+  <form method="post" action="/research/{{ research.id }}/blocks" id="block-composer"
+        data-ops='{{ ops_config | tojson }}'>
+    {% set op_options = [] %}
+    {% for op in op_defs.values() %}
+      {% set _ = op_options.append((op.key, op.label)) %}
+    {% endfor %}
+    {% set first_op = (op_defs.values() | list)[0] %}
+    <div class="actions mb-05">
+      {{ c.select_field("op", "Operation", op_options) }}
+      <span class="op-info">{{ c.info(first_op.description) }}</span>
+    </div>
+    <div class="grid2">
+      <div data-slot="entity">
+        {{ c.select_field("entity", "Work on", [("people", "People"), ("repos", "Repositories")]) }}
+      </div>
+      <div data-slot="metric">
+        {{ c.select_field("metric", "Metric", metric_choices, selected="significance") }}
+      </div>
+      <div data-slot="person">
+        {{ c.select_field("person", "Person", person_options) }}
+      </div>
+      <div data-slot="person_b">
+        {{ c.select_field("person_b", "Second person", person_options) }}
+      </div>
+      <div data-slot="repo">
+        {{ c.select_field("repo", "Repository", repo_options) }}
+      </div>
+      <div data-slot="repo_b">
+        {{ c.select_field("repo_b", "Second repository", repo_options) }}
+      </div>
+      <div data-slot="people">
+        <h3 class="subhead">People</h3>
+        {{ c.list_builder("people", person_options, [], "No people chosen yet.") }}
+      </div>
+      <div data-slot="people_b">
+        <h3 class="subhead">Group B people</h3>
+        {{ c.list_builder("people_b", person_options, [], "No people chosen yet.") }}
+      </div>
+      <div data-slot="repos">
+        <h3 class="subhead">Repositories</h3>
+        {{ c.list_builder("repos", repo_options, [], "No repositories chosen yet.") }}
+      </div>
+    </div>
+    <div class="actions mt-03">
+      <button type="submit">Add block</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

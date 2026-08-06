@@ -10,10 +10,8 @@
   <div class="kpi"><div class="v">{{ s.contributors | length }}</div><div class="l">Contributors</div></div>
 </div>
 
-{% if s.chart %}
-<h2>Activity trend</h2>
-<img class="chart" src="{{ s.chart }}" alt="trend">
-{% endif %}
+{% import "_macros.html" as section_macros %}
+{{ section_macros.chart_block(s.chart) }}
 
 <h2>Contributors</h2>
 <table>

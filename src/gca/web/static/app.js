@@ -87,7 +87,86 @@ function initRowFilters(root) {
   });
 }
 
+/* Auto-submit: a [data-autosubmit] wrapper submits its form when the select
+   inside it changes. The submit button stays as the no-JS fallback. */
+function initAutosubmit(root) {
+  (root || document).querySelectorAll('[data-autosubmit] select').forEach(function (select) {
+    if (select.dataset.ready) return;
+    select.dataset.ready = '1';
+    select.addEventListener('change', function () {
+      if (select.form) select.form.submit();
+    });
+  });
+}
+
+/* Info tooltips: .info-tip tips are position: fixed so scroll containers
+   cannot clip them; place and clamp each tip when its trigger is hovered
+   or focused. Escape blurs the trigger, which hides the tip. */
+function placeInfoTip(e) {
+  var wrap = e.target && e.target.closest ? e.target.closest('.info-tip') : null;
+  if (!wrap) return;
+  var tip = wrap.querySelector('.tip');
+  if (!tip) return;
+  var r = wrap.getBoundingClientRect();
+  var pad = 8;
+  var half = tip.offsetWidth / 2;
+  var x = r.left + r.width / 2;
+  x = Math.max(pad + half, Math.min(x, window.innerWidth - pad - half));
+  var y = r.bottom + 6;
+  if (y + tip.offsetHeight > window.innerHeight - pad) {
+    y = r.top - tip.offsetHeight - 6;
+  }
+  tip.style.setProperty('--tip-x', x + 'px');
+  tip.style.setProperty('--tip-y', y + 'px');
+}
+document.addEventListener('pointerover', placeInfoTip);
+document.addEventListener('focusin', placeInfoTip);
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && document.activeElement &&
+      document.activeElement.closest && document.activeElement.closest('.info-tip')) {
+    document.activeElement.blur();
+  }
+});
+
+/* Research composer: the operation select decides which entity and metric
+   slots are visible, and the info icon next to it mirrors the selected
+   operation's explanation. Ops config rides in the form's data-ops JSON:
+   {op: {slots: [...], info: "..."}}. */
+function initResearchComposer(root) {
+  var form = (root || document).querySelector('#block-composer');
+  if (!form || form.dataset.ready) return;
+  form.dataset.ready = '1';
+  var ops = {};
+  try { ops = JSON.parse(form.dataset.ops || '{}'); } catch (e) { ops = {}; }
+  var opSelect = form.querySelector('select[name="op"]');
+  var entitySelect = form.querySelector('select[name="entity"]');
+  var infoBtn = form.querySelector('.op-info .info-btn');
+  var infoTip = form.querySelector('.op-info .tip');
+  if (!opSelect) return;
+
+  function apply() {
+    var def = ops[opSelect.value] || { slots: [], info: '' };
+    var slots = def.slots.slice();
+    if (slots.indexOf('entity') !== -1) {
+      var wanted = entitySelect && entitySelect.value === 'repos' ? 'repos' : 'people';
+      slots = slots.filter(function (s) { return s !== 'people' && s !== 'repos'; });
+      slots.push(wanted);
+    }
+    form.querySelectorAll('[data-slot]').forEach(function (wrap) {
+      wrap.hidden = slots.indexOf(wrap.dataset.slot) === -1;
+    });
+    if (infoBtn) infoBtn.setAttribute('aria-label', def.info);
+    if (infoTip) infoTip.textContent = def.info;
+  }
+
+  opSelect.addEventListener('change', apply);
+  if (entitySelect) entitySelect.addEventListener('change', apply);
+  apply();
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   initListBuilders();
   initRowFilters();
+  initAutosubmit();
+  initResearchComposer();
 });

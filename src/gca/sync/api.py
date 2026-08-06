@@ -8,6 +8,7 @@ cursors so late merges and state changes are always picked up.
 """
 
 import asyncio
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -17,6 +18,10 @@ API_ROOT = "https://api.github.com"
 _PAGE = 100
 _PR_PAGE = 50
 _SECONDARY_SLEEP_CAP = 120.0
+# Aliased repository lookups per commit-attribution GraphQL request.
+_ATTRIBUTION_BATCH = 40
+_OID_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
+_REPO_NAME_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 class GitHubError(RuntimeError):
@@ -419,6 +424,65 @@ class GitHubClient:
             if len(batch) < _PAGE:
                 return members
             page += 1
+
+    # -- commit attribution -------------------------------------------------
+
+    async def commit_authors(
+        self, owner: str, lookups: list[tuple[str, str, str]]
+    ) -> dict[str, tuple[str, str]]:
+        """Resolve commits to the GitHub accounts GitHub attributes them to.
+
+        `lookups` holds (key, repo_name, oid) triples; the result maps each
+        key to (login, node_id) for commits whose author email GitHub could
+        match to an account. Unresolvable commits (email not registered,
+        commit gone, repo inaccessible) are simply absent from the result.
+        """
+        valid = [
+            (key, name, oid)
+            for key, name, oid in lookups
+            if _REPO_NAME_RE.match(name) and _OID_RE.match(oid)
+        ]
+        if not valid:
+            return {}
+        if self.use_rest:
+            return await self._commit_authors_rest(owner, valid)
+        resolved: dict[str, tuple[str, str]] = {}
+        for start in range(0, len(valid), _ATTRIBUTION_BATCH):
+            chunk = valid[start : start + _ATTRIBUTION_BATCH]
+            fields = []
+            for index, (_, name, oid) in enumerate(chunk):
+                fields.append(
+                    f'c{index}: repository(owner: $owner, name: "{name}") '
+                    f'{{ object(oid: "{oid}") {{ ... on Commit '
+                    f"{{ author {{ user {{ login id }} }} }} }} }}"
+                )
+            query = "query($owner: String!) { " + " ".join(fields) + " }"
+            data = await self.graphql(query, {"owner": owner})
+            for index, (key, _, _) in enumerate(chunk):
+                repository = data.get(f"c{index}") or {}
+                commit = repository.get("object") or {}
+                author = commit.get("author") or {}
+                user = author.get("user") or {}
+                login = user.get("login")
+                if login:
+                    resolved[key] = (login, user.get("id") or "")
+        return resolved
+
+    async def _commit_authors_rest(
+        self, owner: str, lookups: list[tuple[str, str, str]]
+    ) -> dict[str, tuple[str, str]]:
+        resolved: dict[str, tuple[str, str]] = {}
+        for key, name, oid in lookups:
+            response = await self._request(
+                "GET", f"/repos/{owner}/{name}/commits/{oid}"
+            )
+            if response.status_code != 200:
+                continue
+            author = response.json().get("author") or {}
+            login = author.get("login")
+            if login:
+                resolved[key] = (login, author.get("node_id") or "")
+        return resolved
 
     # -- pull requests ------------------------------------------------------
 

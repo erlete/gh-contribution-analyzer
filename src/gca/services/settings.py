@@ -1,9 +1,9 @@
 """In-app settings store.
 
 Operational configuration (mail, AI, general flags) lives in the `settings`
-table as JSON documents. Environment values only seed missing keys on first
-boot; after that the app UI is the single authority. Secrets are encrypted
-with the deployment Fernet key before touching the database.
+table as JSON documents, managed exclusively from the settings screen; the
+environment never configures it. Secrets are encrypted with the deployment
+Fernet key before touching the database.
 """
 
 from typing import Any, Literal
@@ -11,7 +11,6 @@ from typing import Any, Literal
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from gca.config import Settings
 from gca.crypto import decrypt_str, encrypt_str
 from gca.models import Setting
 
@@ -20,7 +19,17 @@ AI_KEY = "ai"
 AI_INSTRUCTIONS_KEY = "ai_instructions"
 MAIL_STATUS_KEY = "mail_status"
 
-INSIGHT_AREAS = ("dashboard", "person", "repo", "report")
+# Instruction buckets: group views (people, repos) are separate from the
+# individual views (person, repo) so guidance never mixes across the two.
+INSIGHT_AREAS = (
+    "dashboard",
+    "people",
+    "person",
+    "repos",
+    "repo",
+    "report",
+    "research",
+)
 
 
 class GraphMailConfig(BaseModel):
@@ -177,36 +186,3 @@ class SettingsStore:
         status = await self.mail_status()
         status.update(fields)
         await self.set(MAIL_STATUS_KEY, status)
-
-    async def seed_from_env(self, env: Settings) -> None:
-        """Write mail/AI seeds for keys that do not exist yet. Idempotent.
-        SMTP is deliberately not seedable: configure it on the settings
-        screen."""
-        if await self.get(MAIL_KEY) is None and all(
-            (
-                env.mail_azure_client_id,
-                env.mail_azure_client_secret,
-                env.mail_azure_tenant_id,
-                env.mail_sender_address,
-            )
-        ):
-            await self.set_mail_graph(
-                GraphMailConfig(
-                    client_id=env.mail_azure_client_id,
-                    client_secret=env.mail_azure_client_secret,
-                    tenant_id=env.mail_azure_tenant_id,
-                    sender=env.mail_sender_address,
-                )
-            )
-        if (
-            await self.get(AI_KEY) is None
-            and env.ai_service_url
-            and env.ai_service_model
-        ):
-            await self.set_ai(
-                AIConfig(
-                    url=env.ai_service_url,
-                    key=env.ai_service_key,
-                    model=env.ai_service_model,
-                )
-            )

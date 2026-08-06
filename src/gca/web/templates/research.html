@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "_components.html" as c %}
+{% block title %}Research, Contribution Analyzer{% endblock %}
+{% block content %}
+<h1 class="page-title">Research</h1>
+<p class="muted small mb-05">
+  Compose comparisons and correlations across people and repositories.
+  A research stores its block configuration; numbers and narratives are
+  recomputed for the selected period and scope every time you open it.
+</p>
+
+<div class="panel">
+  <h2>New research</h2>
+  <form method="post" action="/research" class="actions nowrap">
+    <input type="text" name="name" placeholder="Name, for example 'Q3 frontend team'"
+           class="maxw-field" aria-label="Research name" required>
+    <button type="submit">Create research</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2>Recent researches</h2>
+  {% call c.table("Saved researches, most recently updated first",
+                  [("Name",), ("Blocks", "num"), ("Updated",), ("", "cell-actions")]) %}
+    {% for r in researches %}
+    <tr>
+      <td><a href="/research/{{ r.id }}">{{ r.name }}</a></td>
+      <td class="num">{{ r.blocks | length if r.blocks else 0 }}</td>
+      <td>{{ r.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td class="cell-actions">
+        <form method="post" action="/research/{{ r.id }}/delete" class="inline">
+          <button type="submit" class="ghost small">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    {{ c.empty_row(4, "No researches yet. Create the first one above.") }}
+    {% endfor %}
+  {% endcall %}
+</div>
+{% endblock %}

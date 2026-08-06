@@ -2,13 +2,15 @@
 
 ## Philosophy
 
-`.env` carries deployment internals only (database, secret key, edge proxy). The
-`MAIL_*` and `AI_*` environment values are seeds: on first boot they are
-imported into the settings table, and only for keys that do not exist yet. From then
-on the in-app settings screen is the single authority; changing the environment
-later has no effect on already-seeded keys. All secrets stored in the database
-(org tokens, mail secrets, AI keys) are encrypted with the deployment Fernet key
-(`APP_SECRET_KEY`).
+`.env` carries deployment internals only (database, secret key, edge proxy
+port and bind address). Operational settings (org tokens, mail, AI,
+recipients, schedules) are configured exclusively on the in-app settings
+screen; the environment never configures or overrides them. All secrets
+stored in the database (org tokens, mail secrets, AI keys) are encrypted with
+the deployment Fernet key (`APP_SECRET_KEY`).
+
+The selected timeframe (including custom windows) is kept in a cookie, so it
+survives navigation between pages until a different range is picked.
 
 ## Organizations
 
@@ -215,6 +217,16 @@ the most recent fully closed period per enabled schedule and a job ledger
 guarantees each period fires exactly once. Generation is never retroactive; older
 closed periods are not backfilled. Generated reports are emailed to the active
 recipients list, managed on the settings screen.
+
+## Operations audit
+
+The Operations page shows what is running right now (org syncs, report
+generations, auto-refreshing) and the full audit trail: every sync result,
+report lifecycle event, mail delivery, identity merge and split, policy
+change (filters, forks, members-only), settings change and org
+addition/removal is recorded as it happens, with actor (admin, worker,
+system), subject and detail. History is filterable by event kind and by
+free text.
 
 ## Sync scheduling
 

@@ -104,6 +104,12 @@ async def reports_generate(
         )
     except ValueError:
         return RedirectResponse("/reports?msg=Invalid dates", status_code=303)
+    # No start date means the whole history: mark the report all-time so
+    # narratives never compare against a nonexistent previous period.
+    all_time = not date_from
+    label = None
+    if all_time:
+        label = "All time" if not date_to else f"All time through {date_to}"
     try:
         report = await request_report(
             session,
@@ -111,7 +117,8 @@ async def reports_generate(
             org_ids=scope.selected_ids,
             start=start,
             end=end,
-            period_kind="custom",
+            period_kind="all" if all_time else "custom",
+            period_label=label,
             repo_ids=repo_ids or None,
             person_ids=person_ids or None,
         )

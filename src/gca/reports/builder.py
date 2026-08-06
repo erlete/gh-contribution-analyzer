@@ -3,18 +3,22 @@
 WeasyPrint is imported lazily: it needs Pango system libraries that only
 exist in the container image, and nothing else in the app should pay that
 import cost or dependency.
+
+Fonts: WeasyPrint only honors @font-face when a FontConfiguration is shared
+between the CSS objects and write_pdf; without it the PDF silently falls
+back to system fonts. The font check in tests guards this.
 """
 
-import base64
-import io
 from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from gca.charts import ChartSpec, Series, render_matplotlib
 from gca.services.stats import DayPoint
 
 _TEMPLATES = Path(__file__).parent / "templates"
+_STYLES = Path(__file__).parent / "styles"
 
 
 def _env() -> Environment:
@@ -28,56 +32,36 @@ def _env() -> Environment:
     return env
 
 
-def trend_chart_data_uri(series: list[DayPoint]) -> str:
-    """Line chart of daily commits and significance as a base64 PNG."""
-    import matplotlib
-
-    matplotlib.use("Agg")
-    from matplotlib import pyplot as plt
-
-    fig, ax = plt.subplots(figsize=(8.6, 2.6), dpi=150)
-    xs = list(range(len(series)))
-    ax.plot(
-        xs,
-        [p.commits for p in series],
-        color="#2f6fb6",
-        linewidth=1.4,
-        label="Commits",
+def trend_chart_svg(series: list[DayPoint]) -> str:
+    """Daily commits and significance as an inline SVG (vectors stay sharp
+    in the PDF at any zoom)."""
+    spec = ChartSpec(
+        kind="line",
+        labels=[p.day.isoformat() for p in series],
+        series=[
+            Series(name="Commits", values=[float(p.commits) for p in series]),
+            Series(
+                name="Significance",
+                values=[round(p.significance, 2) for p in series],
+                axis=1,
+            ),
+        ],
+        axes=["Commits", "Significance"],
+        description="Daily commits and significance over the report period",
     )
-    ax2 = ax.twinx()
-    ax2.plot(
-        xs,
-        [p.significance for p in series],
-        color="#2f9e5f",
-        linewidth=1.2,
-        label="Significance",
-    )
-    step = max(1, len(xs) // 10)
-    ax.set_xticks(xs[::step])
-    ax.set_xticklabels(
-        [series[i].day.isoformat() for i in xs[::step]],
-        rotation=30,
-        ha="right",
-        fontsize=5,
-    )
-    ax.set_ylabel("Commits", fontsize=7)
-    ax2.set_ylabel("Significance", fontsize=7)
-    for axis in (ax, ax2):
-        axis.tick_params(labelsize=6)
-        for spine in axis.spines.values():
-            spine.set_color("#cccccc")
-    ax.grid(color="#eeeeee", linewidth=0.5)
-    fig.legend(loc="upper left", fontsize=6, frameon=False)
-    fig.tight_layout()
-    buffer = io.BytesIO()
-    fig.savefig(buffer, format="png")
-    plt.close(fig)
-    encoded = base64.b64encode(buffer.getvalue()).decode()
-    return f"data:image/png;base64,{encoded}"
+    return render_matplotlib(spec)
 
 
 def render_pdf(template_name: str, context: dict[str, Any]) -> bytes:
     html = _env().get_template(template_name).render(**context)
-    from weasyprint import HTML
+    from weasyprint import CSS, HTML
+    from weasyprint.text.fonts import FontConfiguration
 
-    return bytes(HTML(string=html).write_pdf())
+    font_config = FontConfiguration()
+    stylesheets = [
+        CSS(filename=str(_STYLES / "tokens-print.css"), font_config=font_config),
+        CSS(filename=str(_STYLES / "report.css"), font_config=font_config),
+    ]
+    return bytes(
+        HTML(string=html).write_pdf(stylesheets=stylesheets, font_config=font_config)
+    )

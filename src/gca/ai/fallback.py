@@ -22,6 +22,14 @@ def _pct(ratio: object) -> str:
         return "0%"
 
 
+def _period_phrase(context: dict[str, Any]) -> str:
+    """'in last 30 days' for windows, history wording for all-time."""
+    if context.get("period_mode") == "all time":
+        return "over the entire recorded history"
+    period = str(context.get("period", "the selected period"))
+    return f"in {period.lower()}"
+
+
 def _delta_phrase(value: object, label: str) -> str | None:
     """'commits up 12% versus the previous period' from a percent delta."""
     try:
@@ -69,15 +77,15 @@ def _turnover_sentence(turnover: dict[str, Any] | None, noun: str) -> str | None
 
 def _dashboard(context: dict[str, Any]) -> str:
     totals = context.get("totals") or {}
-    period = context.get("period", "the selected period")
+    when = _period_phrase(context)
     orgs = context.get("orgs", "the selected orgs")
     commits = _num(totals.get("commits"))
     if commits == 0:
-        return f"No recorded activity for {orgs} in {period.lower()}."
+        return f"No recorded activity for {orgs} {when}."
     parts = [
         f"{commits:,} commits from {_num(totals.get('active_people')):,} "
         f"contributors touched {_num(totals.get('active_repos')):,} "
-        f"repositories in {period.lower()} across {orgs}.",
+        f"repositories {when} across {orgs}.",
         f"{_num(totals.get('additions')):,} lines were added and "
         f"{_num(totals.get('deletions')):,} removed, with a churn ratio of "
         f"{_pct(totals.get('churn_ratio'))}.",
@@ -120,14 +128,14 @@ def _dashboard(context: dict[str, Any]) -> str:
 def _person(context: dict[str, Any]) -> str:
     metrics = context.get("metrics") or {}
     name = context.get("person", "This person")
-    period = context.get("period", "the selected period")
+    when = _period_phrase(context)
     commits = _num(metrics.get("commits"))
     if commits == 0 and _num(metrics.get("reviews")) == 0:
-        return f"{name} has no recorded activity in {period.lower()}."
+        return f"{name} has no recorded activity {when}."
     parts = [
         f"{name} authored {commits:,} commits "
         f"({_num(metrics.get('additions')):,} lines added, "
-        f"{_num(metrics.get('deletions')):,} removed) in {period.lower()}."
+        f"{_num(metrics.get('deletions')):,} removed) {when}."
     ]
     deltas = _deltas_sentence(context)
     if deltas:
@@ -172,14 +180,14 @@ def _person(context: dict[str, Any]) -> str:
 def _repo(context: dict[str, Any]) -> str:
     totals = context.get("totals") or {}
     repo = context.get("repo", "This repository")
-    period = context.get("period", "the selected period")
+    when = _period_phrase(context)
     commits = _num(totals.get("commits"))
     if commits == 0:
-        return f"{repo} shows no activity in {period.lower()}."
+        return f"{repo} shows no activity {when}."
     parts = [
         f"{repo} received {commits:,} commits from "
-        f"{_num(context.get('contributor_count')):,} contributors in "
-        f"{period.lower()}: {_num(totals.get('additions')):,} lines added, "
+        f"{_num(context.get('contributor_count')):,} contributors "
+        f"{when}: {_num(totals.get('additions')):,} lines added, "
         f"{_num(totals.get('deletions')):,} removed "
         f"(churn {_pct(totals.get('churn_ratio'))})."
     ]
@@ -206,10 +214,19 @@ def _repo(context: dict[str, Any]) -> str:
     return " ".join(parts)
 
 
+def _research(context: dict[str, Any]) -> str:
+    """Research blocks precompute their factual statements; join them."""
+    facts = [str(f).strip() for f in (context.get("facts") or []) if str(f).strip()]
+    if not facts:
+        return f"No recorded activity for this block {_period_phrase(context)}."
+    return " ".join(facts)
+
+
 _GENERATORS = {
     "dashboard": _dashboard,
     "person": _person,
     "repo": _repo,
+    "research": _research,
 }
 
 

@@ -17,7 +17,7 @@ from gca.identity.merge import (
     unmerge_identity,
 )
 from gca.models import MergeSuggestion, Person
-from gca.services import membership
+from gca.services import audit, membership
 from gca.web.context import get_scope
 from gca.web.deps import templates
 
@@ -40,19 +40,30 @@ async def manage_view(request: Request, session: SessionDep) -> Response:
         .scalars()
         .all()
     )
-    visible = await membership.visible_person_ids(session)
-    if visible is not None:
-        persons = [p for p in persons if p.id in visible]
-    person_by_id = {p.id: p for p in persons}
-    suggestions = [
-        s
-        for s in (
+    pending = (
+        (
             await session.execute(
                 sa.select(MergeSuggestion)
                 .where(MergeSuggestion.status == "pending")
                 .order_by(MergeSuggestion.score.desc())
             )
-        ).scalars()
+        )
+        .scalars()
+        .all()
+    )
+    # The list shows stats-visible and member-linked persons plus anyone a
+    # pending suggestion references. Hidden member duplicates always ride
+    # in via their pair with a relevant person; externals whose activity
+    # lies only in excluded or fork repos never appear (their commits
+    # never count, so their identity hygiene is nobody's problem).
+    relevant = await membership.relevant_person_ids(session)
+    referenced = {s.person_a_id for s in pending} | {s.person_b_id for s in pending}
+    if relevant is not None:
+        persons = [p for p in persons if p.id in relevant or p.id in referenced]
+    person_by_id = {p.id: p for p in persons}
+    suggestions = [
+        s
+        for s in pending
         if s.person_a_id in person_by_id and s.person_b_id in person_by_id
     ]
     return templates.TemplateResponse(
@@ -122,6 +133,12 @@ async def dismiss_suggestion(
             status_code=303,
         )
     suggestion.status = "dismissed"
+    await audit.record(
+        session,
+        kind="suggestion.dismissed",
+        subject=f"pair {suggestion.person_a_id}/{suggestion.person_b_id}",
+        message="Merge suggestion dismissed",
+    )
     await session.commit()
     return RedirectResponse("/manage?msg=Suggestion dismissed", status_code=303)
 
@@ -133,6 +150,12 @@ async def _merge_with_names(
     source = await session.get(Person, source_id)
     source_name = source.display_name if source else str(source_id)
     target = await merge_persons(session, target_id, source_id)
+    await audit.record(
+        session,
+        kind="identity.merged",
+        subject=target.display_name,
+        message=f"Merged {source_name} into {target.display_name}",
+    )
     return f"Merged {source_name} into {target.display_name}"
 
 
@@ -157,6 +180,12 @@ async def manual_merge(
 async def unmerge(session: SessionDep, identity_id: int) -> RedirectResponse:
     try:
         person = await unmerge_identity(session, identity_id)
+        await audit.record(
+            session,
+            kind="identity.split",
+            subject=person.display_name,
+            message=f"Identity split into new person {person.display_name}",
+        )
         await session.commit()
         message = f"Identity split into new person {person.display_name}"
     except MergeError as exc:

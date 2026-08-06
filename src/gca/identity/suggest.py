@@ -2,15 +2,20 @@
 
 Signals, strongest first:
 - identical email on both persons
-- GitHub noreply email whose embedded login matches the other person's login
-- identical email local part (ignoring generic mailbox names)
-- normalized full-name similarity
+- GitHub noreply email whose embedded login matches the other person's
+  login or name
+- identical multi-token full name (widely shared names are pruned first)
 - login equal to a name with spaces removed
+- identical email local part (ignoring generic mailbox names)
+- normalized name similarity below identity
 
-The first two signals are identity proofs (GitHub issued that noreply
-address for that account; two identities writing from the same mailbox are
-the same human): pairs carrying one are merged automatically during scans
-instead of waiting in the suggestion queue. Dismissed pairs are never
+The first four signals are identity proofs: pairs carrying one are merged
+automatically during scans instead of waiting in the suggestion queue.
+Scoring sees every person, including those hidden from stats surfaces by
+members_only, because hidden git-email duplicates are the ones whose
+attribution a merge recovers. Heuristic suggestions, however, only surface
+when at least one side is visible: pairs of two hidden externals (fork
+history, excluded repos) never reach the queue. Dismissed pairs are never
 auto-merged; a human already said no.
 """
 
@@ -45,6 +50,10 @@ _GENERIC_LOCALPARTS = {
 }
 SUGGESTION_THRESHOLD = 0.55
 SHARED_NAME_OWNER_CAP = 2
+# Multi-token human full names get a looser cap: one person fragmented into
+# three or four duplicates all named "Mario González Besada" must still
+# pair, while single-token machine names (root, dev, bots) stay strict.
+FULL_NAME_OWNER_CAP = 5
 # Signal weights at or above this value are identity proofs, not heuristics.
 CERTAIN_SIGNAL_WEIGHT = 0.95
 
@@ -99,10 +108,17 @@ def evaluate_pair(a: PersonView, b: PersonView) -> PairEvidence:
         contributions.append((1.0, f"shared email {email}"))
 
     for view, other in ((a, b), (b, a)):
+        other_squashed = {n.replace(" ", "") for n in other.names}
         for email in sorted(view.emails):
             login = _noreply_login(email)
-            if login and login in other.logins:
+            if not login:
+                continue
+            if login in other.logins:
                 contributions.append((0.95, f"noreply email matches login {login}"))
+            elif login in other_squashed:
+                # GitHub issued that noreply address for that account, and
+                # the other person writes under that account's name.
+                contributions.append((0.95, f"noreply email matches name {login}"))
 
     locals_a = {
         _local_part(e)
@@ -117,14 +133,25 @@ def evaluate_pair(a: PersonView, b: PersonView) -> PairEvidence:
     for lp in sorted((locals_a & locals_b) - _GENERIC_LOCALPARTS):
         contributions.append((0.6, f"shared email local part {lp}"))
 
-    similarity = _name_similarity(a, b)
-    if similarity >= 0.8:
-        contributions.append((0.5 * similarity, f"similar names ({similarity:.2f})"))
+    # An identical multi-token full name is an identity proof in an org
+    # context (widely shared names were already pruned from scoring);
+    # single-token names (handles, machine names) only ever count as the
+    # graded similarity heuristic below.
+    if any(" " in n for n in a.names & b.names):
+        contributions.append((0.95, "similar names (1.00)"))
+    else:
+        similarity = _name_similarity(a, b)
+        if similarity >= 0.8:
+            contributions.append(
+                (0.5 * similarity, f"similar names ({similarity:.2f})")
+            )
 
     squashed_names_a = {n.replace(" ", "") for n in a.names}
     squashed_names_b = {n.replace(" ", "") for n in b.names}
     if (a.logins & squashed_names_b) or (b.logins & squashed_names_a):
-        contributions.append((0.4, "login matches name"))
+        # A GitHub login equal to the other person's full name with spaces
+        # removed is the same account writing under its own name.
+        contributions.append((0.95, "login matches name"))
 
     if not contributions:
         return PairEvidence(score=0.0, reasons=[], certain=False)
@@ -163,10 +190,12 @@ async def load_person_views(session: AsyncSession) -> list[PersonView]:
     for view in views.values():
         if normalize_text(view.display_name):
             view.names.add(normalize_text(view.display_name))
+    # Identity resolution deliberately sees EVERY person, including those
+    # hidden from stats surfaces by members_only or repo exclusion. Hidden
+    # git-email persons are exactly the ones that need merging into their
+    # member person; filtering them here would strand their attribution on
+    # invisible duplicates forever.
     result = list(views.values())
-    visible = await membership.visible_person_ids(session)
-    if visible is not None:
-        result = [v for v in result if v.id in visible]
     _prune_shared_names(result)
     return result
 
@@ -185,7 +214,11 @@ def _prune_shared_names(views: list[PersonView]) -> None:
     for view in views:
         owners.update(view.names)
     for view in views:
-        view.names = {n for n in view.names if owners[n] <= SHARED_NAME_OWNER_CAP}
+        view.names = {
+            n
+            for n in view.names
+            if owners[n] <= (FULL_NAME_OWNER_CAP if " " in n else SHARED_NAME_OWNER_CAP)
+        }
 
 
 async def _existing_pairs(session: AsyncSession) -> set[tuple[int, int]]:
@@ -224,6 +257,7 @@ async def _auto_merge(
 ) -> int:
     """Execute queued certain merges, following prior merges transitively."""
     from gca.identity.merge import merge_persons
+    from gca.services import audit
 
     redirect: dict[int, int] = {}
 
@@ -251,6 +285,16 @@ async def _auto_merge(
         ):
             survivor.display_name = source.display_name
             await session.flush()
+        await audit.record(
+            session,
+            kind="identity.auto_merged",
+            actor="system",
+            subject=survivor.display_name,
+            message=(
+                f"Automatically merged {source.display_name} into "
+                f"{survivor.display_name} (identity proof)"
+            ),
+        )
         redirect[source.id] = target.id
         merged += 1
     return merged
@@ -262,9 +306,20 @@ async def generate(
     """Full scan: revalidate every pending suggestion against current data,
     auto-merge pairs carrying an identity proof, then insert new pairs that
     score. Returns (created, removed, merged). Dismissed suggestions are
-    never resurrected, never deleted and never auto-merged."""
+    never resurrected, never deleted and never auto-merged.
+
+    Scoring covers every person, but heuristic suggestions only surface
+    when at least one side is visible on stats surfaces: a pair of two
+    hidden externals (fork history, excluded repos) is noise nobody will
+    ever act on. Identity proofs still merge regardless of visibility;
+    that silent path is what repairs hidden member duplicates."""
     views = await load_person_views(session)
     by_id = {v.id: v for v in views}
+    relevant = await membership.relevant_person_ids(session)
+
+    def surfaced(a_id: int, b_id: int) -> bool:
+        return relevant is None or a_id in relevant or b_id in relevant
+
     removed = 0
     certain_pairs: list[tuple[int, int]] = []
     pending = (
@@ -288,7 +343,9 @@ async def generate(
             # The merge below deletes this row along with every other
             # suggestion referencing either person.
             certain_pairs.append((row.person_a_id, row.person_b_id))
-        elif evidence.score < threshold:
+        elif evidence.score < threshold or not surfaced(
+            row.person_a_id, row.person_b_id
+        ):
             await session.delete(row)
             removed += 1
         else:
@@ -307,7 +364,7 @@ async def generate(
                 certain_pairs.append((a.id, b.id))
                 existing_pairs.add((low, high))
                 continue
-            if evidence.score < threshold:
+            if evidence.score < threshold or not surfaced(a.id, b.id):
                 continue
             session.add(
                 MergeSuggestion(
@@ -338,6 +395,7 @@ async def generate_for_person(
     me = next((v for v in views if v.id == person_id), None)
     if me is None:
         return 0
+    relevant = await membership.relevant_person_ids(session)
     existing_pairs = await _existing_pairs(session)
     created = 0
     for other in views:
@@ -345,6 +403,8 @@ async def generate_for_person(
             continue
         low, high = sorted((me.id, other.id))
         if (low, high) in existing_pairs:
+            continue
+        if relevant is not None and me.id not in relevant and other.id not in relevant:
             continue
         score, reasons = score_pair(me, other)
         if score < threshold:

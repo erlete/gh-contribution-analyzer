@@ -9,6 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from gca.ai import insights
 from gca.config import get_settings
 from gca.identity import suggest
 from gca.mail.dispatch import send_report
@@ -23,6 +24,7 @@ from gca.models import (
 )
 from gca.reports.service import fulfill_report, generate_reports
 from gca.scheduler.periods import period_key, period_label, previous_period
+from gca.services import audit
 from gca.services.settings import SettingsStore
 from gca.sync.gitrepo import GitMirror, rmtree_robust
 from gca.sync.orchestrator import sync_org
@@ -229,6 +231,13 @@ async def process_report_queue(factory: SessionFactory) -> None:
                 if failed is not None:
                     failed.status = "failed"
                     failed.error = str(exc)[:2000]
+                    await audit.record(
+                        session,
+                        kind="report.failed",
+                        actor="worker",
+                        subject=failed.title,
+                        message=f"Report failed: {str(exc)[:300]}",
+                    )
                     await session.commit()
 
 
@@ -246,7 +255,13 @@ async def generate_suggestions_job(factory: SessionFactory) -> None:
 
 
 async def maintenance(factory: SessionFactory) -> None:
-    """Weekly: filtered repack keeps clones slim, orphan dirs are removed."""
+    """Weekly: filtered repack keeps clones slim, orphan dirs are removed,
+    unreachable insight-cache rows are pruned."""
+    async with factory() as session:
+        pruned = await insights.prune_stale(session)
+        await session.commit()
+        if pruned:
+            log.info("pruned %s stale cached insights", pruned)
     settings = get_settings()
     clone_root = Path(settings.clone_dir)
     async with factory() as session:

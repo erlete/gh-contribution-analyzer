@@ -1,0 +1,25 @@
+{% import "_components.html" as c %}
+<div id="ops-running" hx-get="/partials/operations-running" hx-trigger="every 10s" hx-swap="outerHTML">
+  {% if not syncing and not active_reports %}
+  {{ c.empty_state("Nothing running", "Syncs and report generations appear here the moment they start.") }}
+  {% else %}
+  {% call c.table("Operations in progress", [("Operation",), ("Subject",), ("Status",), ("Since",)]) %}
+    {% for org in syncing %}
+    <tr>
+      <td>Organization sync</td>
+      <td>{{ org.login }}</td>
+      <td>{{ c.status_tag("running") }}</td>
+      <td class="helper">{{ org.last_synced_at.strftime("%Y-%m-%d %H:%M") if org.last_synced_at else "first sync" }}</td>
+    </tr>
+    {% endfor %}
+    {% for report in active_reports %}
+    <tr>
+      <td>Report generation</td>
+      <td>{{ report.title }}</td>
+      <td>{{ c.status_tag("generating") }}</td>
+      <td class="helper">{{ report.generated_at.strftime("%Y-%m-%d %H:%M") }}</td>
+    </tr>
+    {% endfor %}
+  {% endcall %}
+  {% endif %}
+</div>

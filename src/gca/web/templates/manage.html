@@ -1,20 +1,25 @@
 {% extends "base.html" %}
+{% import "_components.html" as c %}
 {% block title %}Identity management, Contribution Analyzer{% endblock %}
 {% block content %}
-<h1>Identity management</h1>
+<h1 class="page-title">Identity management</h1>
 
 <div class="panel">
-  <h2>Merge suggestions</h2>
-  <p class="muted small">
+  <h2>Merge suggestions {{ c.info(glossary.merge_suggestions) }}</h2>
+  <p class="muted small mb-03">
     Merging moves every identity of the absorbed person onto the kept person,
     then deletes the absorbed person. The kept person keeps its display name.
-    Pick which one survives with the buttons on each row.
+    Pairs proven by identity evidence merge automatically during scans; only
+    heuristic matches involving at least one visible person wait here.
+    External identities whose activity lies only in excluded or fork
+    repositories never appear.
   </p>
-  <form method="post" action="/manage/suggest/run" style="margin-bottom:0.8rem">
+  <form method="post" action="/manage/suggest/run" class="mb-05">
     <button type="submit" class="secondary">Scan for new suggestions</button>
   </form>
-  <table>
-    <tr><th>Candidate pair</th><th>Why</th><th class="num">Score</th><th>Merge</th><th></th></tr>
+  {% call c.table("Pending merge suggestions",
+                  [("Candidate pair",), ("Why", None, None, glossary.suggestion_why),
+                   ("Score", "num", None, glossary.suggestion_score), ("Merge",), ("",)]) %}
     {% for s in suggestions %}
     {% set pa = person_by_id.get(s.person_a_id) %}
     {% set pb = person_by_id.get(s.person_b_id) %}
@@ -26,48 +31,42 @@
         +
         <a href="/people/{{ s.person_b_id }}">{{ name_b }}</a>
       </td>
-      <td class="small muted">{{ (s.reasons or []) | join('; ') }}</td>
-      <td class="num"><span class="pill accent">{{ (s.score * 100) | round | int }}%</span></td>
-      <td class="actions">
-        <form method="post" action="/manage/suggestions/{{ s.id }}/accept">
-          <input type="hidden" name="keep" value="{{ s.person_a_id }}">
-          <button type="submit" title="Absorb {{ name_b }} into {{ name_a }}">Keep {{ name_a }}</button>
-        </form>
-        <form method="post" action="/manage/suggestions/{{ s.id }}/accept">
-          <input type="hidden" name="keep" value="{{ s.person_b_id }}">
-          <button type="submit" title="Absorb {{ name_a }} into {{ name_b }}">Keep {{ name_b }}</button>
-        </form>
+      <td class="small helper">{{ (s.reasons or []) | join('; ') }}</td>
+      <td class="num">{{ c.tag((s.score * 100) | round | int ~ "%", "blue", outline=True) }}</td>
+      <td>
+        <div class="actions even">
+          <form method="post" action="/manage/suggestions/{{ s.id }}/accept">
+            <input type="hidden" name="keep" value="{{ s.person_a_id }}">
+            <button type="submit" class="small" title="Absorb {{ name_b }} into {{ name_a }}"><span class="truncate">Keep {{ name_a }}</span></button>
+          </form>
+          <form method="post" action="/manage/suggestions/{{ s.id }}/accept">
+            <input type="hidden" name="keep" value="{{ s.person_b_id }}">
+            <button type="submit" class="small" title="Absorb {{ name_a }} into {{ name_b }}"><span class="truncate">Keep {{ name_b }}</span></button>
+          </form>
+        </div>
       </td>
       <td>
         <form method="post" action="/manage/suggestions/{{ s.id }}/dismiss">
-          <button type="submit" class="secondary">Dismiss</button>
+          <button type="submit" class="ghost small">Dismiss</button>
         </form>
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="5" class="muted">No pending suggestions.</td></tr>
+    {{ c.empty_row(5, "No pending suggestions. New evidence appears here after every sync and nightly scan.") }}
     {% endfor %}
-  </table>
+  {% endcall %}
 </div>
 
 <div class="panel">
-  <h2>Manual merge</h2>
-  <p class="muted small">
+  <h2>Manual merge {{ c.info(glossary.manual_merge) }}</h2>
+  <p class="muted small mb-03">
     The person under <strong>Keep</strong> survives with its display name.
     The person under <strong>Absorb</strong> hands over all its identities and
     activity, then disappears.
   </p>
   <form method="post" action="/manage/merge" class="actions">
-    <label class="field">Keep (survives)
-      <select name="target_id">
-        {% for p in persons %}<option value="{{ p.id }}">{{ p.display_name }}</option>{% endfor %}
-      </select>
-    </label>
-    <label class="field">Absorb (disappears into Keep)
-      <select name="source_id">
-        {% for p in persons %}<option value="{{ p.id }}">{{ p.display_name }}</option>{% endfor %}
-      </select>
-    </label>
+    {{ c.select_field("target_id", "Keep (survives)", options_from(persons, "id", "display_name")) }}
+    {{ c.select_field("source_id", "Absorb (disappears into Keep)", options_from(persons, "id", "display_name")) }}
     <button type="submit">Merge</button>
   </form>
 </div>
@@ -76,35 +75,42 @@
   <h2>People and identities ({{ persons | length }})</h2>
   <input type="search" class="rowfilter" placeholder="Filter by name, login or email"
          data-filter-rows="#people-table" aria-label="Filter people">
-  <table id="people-table">
-    <tr><th>Person</th><th>Identities</th><th>Rename</th></tr>
+  {% call c.table("Every person and the identities merged into them",
+                  [("Person",), ("Identities", None, None, glossary.identities ~ " The split arrow detaches an identity into a person of its own, undoing a wrong merge."),
+                   ("Rename",)], id="people-table") %}
     {% for p in persons %}
     <tr>
       <td><a href="/people/{{ p.id }}">{{ p.display_name }}</a></td>
       <td>
         {% for identity in p.identities %}
-        <span class="pill">
+        <span class="tag teal outline">
           {{ identity.login or (identity.name ~ ' <' ~ identity.email ~ '>') }}
           {% if p.identities | length > 1 %}
-          <form method="post" action="/manage/unmerge/{{ identity.id }}" style="display:inline">
-            <button type="submit" class="secondary" style="padding:0 0.4rem;font-size:0.75rem" title="Split into its own person">split</button>
+          <form method="post" action="/manage/unmerge/{{ identity.id }}" class="inline">
+            <button type="submit" class="icon ghost" title="Split into its own person"
+                    aria-label="Split this identity into its own person">
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                <path d="M8 2v5M8 7L3.5 11.5M8 7l4.5 4.5" fill="none"
+                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
           </form>
           {% endif %}
         </span>
         {% endfor %}
       </td>
       <td>
-        <form method="post" action="/manage/person/{{ p.id }}/rename" class="actions">
-          <input type="text" name="display_name" value="{{ p.display_name }}" style="max-width:180px">
+        <form method="post" action="/manage/person/{{ p.id }}/rename" class="actions nowrap">
+          <input type="text" name="display_name" value="{{ p.display_name }}" class="maxw-field" aria-label="New display name">
           <button type="submit" class="secondary">Save</button>
         </form>
       </td>
     </tr>
     {% endfor %}
-  </table>
+  {% endcall %}
 </div>
 
-<p class="muted small">
+<p class="helper small">
   Per-org person filters, repository filters, fork and member rules live on
   the <a href="/orgs">Orgs</a> page.
 </p>

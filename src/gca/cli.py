@@ -19,7 +19,6 @@ from gca.identity import suggest
 from gca.models import Org, Report
 from gca.reports.service import generate_reports
 from gca.services.orgs import add_org
-from gca.services.settings import SettingsStore
 from gca.sync.orchestrator import remove_org, sync_org
 
 
@@ -165,15 +164,6 @@ async def _cmd_suggest() -> int:
     return 0
 
 
-async def _cmd_seed() -> int:
-    factory = get_session_factory()
-    async with factory() as session:
-        await SettingsStore(session).seed_from_env(get_settings())
-        await session.commit()
-        print("settings seeded from environment where unset")
-    return 0
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(prog="gca")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -208,12 +198,6 @@ def main() -> None:
     suggest_sub = suggest_parser.add_subparsers(dest="suggest_command", required=True)
     suggest_sub.add_parser("run")
 
-    settings_parser = sub.add_parser("settings", help="settings management")
-    settings_sub = settings_parser.add_subparsers(
-        dest="settings_command", required=True
-    )
-    settings_sub.add_parser("seed")
-
     args = parser.parse_args()
     if args.command == "org" and args.org_command == "add":
         code = asyncio.run(_cmd_org_add(args.login, args.token_file))
@@ -229,8 +213,9 @@ def main() -> None:
         code = asyncio.run(_cmd_report_list())
     elif args.command == "suggest":
         code = asyncio.run(_cmd_suggest())
-    else:
-        code = asyncio.run(_cmd_seed())
+    else:  # pragma: no cover - argparse enforces the command set
+        parser.error("unknown command")
+        code = 2
     raise SystemExit(code)
 
 

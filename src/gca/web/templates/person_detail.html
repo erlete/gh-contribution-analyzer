@@ -1,35 +1,38 @@
 {% extends "base.html" %}
+{% import "_components.html" as c %}
 {% block title %}{{ person.display_name }}, Contribution Analyzer{% endblock %}
 {% block content %}
-<h1>{{ person.display_name }}</h1>
-<p class="muted small">
-  Identities:
+<h1 class="page-title">{{ person.display_name }}</h1>
+<div class="inline-row mb-05">
+  <span class="muted small">Identities {{ c.info(glossary.identities) }}</span>
   {% for identity in person.identities %}
-  <span class="pill">{{ identity.login or identity.email or identity.name }}</span>
+  {{ c.tag(identity.login or identity.email or identity.name, "teal", outline=True) }}
   {% endfor %}
-  <a href="/manage">manage</a>
-</p>
+  <a href="/manage" class="btn secondary small">Manage identities</a>
+</div>
 
 {% include "_rangebar.html" %}
 
-<div hx-get="/partials/insight?view=person&person_id={{ person.id }}&range={{ period.key }}" hx-trigger="load" hx-swap="outerHTML"></div>
+<div hx-get="/partials/insight?view=person&person_id={{ person.id }}&range={{ period.key }}" hx-trigger="load" hx-swap="outerHTML">
+  <div class="insight"><div class="tag-line">Insight</div><div class="skeleton"></div></div>
+</div>
 
 {% if me %}
-<div class="cards">
-  <div class="card"><div class="value">{{ me.commits | int_fmt }}</div><div class="label">Commits</div></div>
-  <div class="card"><div class="value">{{ me.additions | int_fmt }}</div><div class="label">Lines added</div></div>
-  <div class="card"><div class="value">{{ me.deletions | int_fmt }}</div><div class="label">Lines deleted</div></div>
-  <div class="card"><div class="value">{{ me.churn_ratio | pct }}%</div><div class="label">Churn ratio</div></div>
-  <div class="card"><div class="value">{{ me.self_churn | int_fmt }} / {{ me.cross_churn | int_fmt }}</div><div class="label">Self / cross churn</div></div>
-  <div class="card"><div class="value">{{ me.significance | float_fmt }}</div><div class="label">Significance</div></div>
-  <div class="card"><div class="value">{{ me.prs_opened | int_fmt }} / {{ me.prs_merged | int_fmt }}</div><div class="label">PRs opened / merged</div></div>
-  <div class="card"><div class="value">{{ me.reviews | int_fmt }}</div><div class="label">Reviews given</div></div>
+<div class="cards count-8">
+  {{ c.kpi(me.commits | int_fmt, "Commits", help=glossary.commits) }}
+  {{ c.kpi(me.additions | int_fmt, "Lines added", help=glossary.additions) }}
+  {{ c.kpi(me.deletions | int_fmt, "Lines deleted", help=glossary.deletions) }}
+  {{ c.kpi((me.churn_ratio | pct) ~ "%", "Churn ratio", help=glossary.churn_ratio) }}
+  {{ c.kpi((me.self_churn | int_fmt) ~ " / " ~ (me.cross_churn | int_fmt), "Self / cross churn", help=glossary.self_churn ~ " " ~ glossary.cross_churn) }}
+  {{ c.kpi(me.significance | float_fmt, "Significance", help=glossary.significance) }}
+  {{ c.kpi((me.prs_opened | int_fmt) ~ " / " ~ (me.prs_merged | int_fmt), "PRs opened / merged", help=glossary.prs_opened ~ " " ~ glossary.prs_merged) }}
+  {{ c.kpi(me.reviews | int_fmt, "Reviews given", help=glossary.reviews) }}
 </div>
 
 <div class="panel">
-  <h2>Percentile position (population of {{ population }})</h2>
-  <table>
-    <tr><th>Metric</th><th class="num">Value</th><th style="width:45%">Percentile</th></tr>
+  <h2>Percentile position (population of {{ population }}) {{ c.info(glossary.percentile_position) }}</h2>
+  {% call c.table("Standing within the population per metric",
+                  [("Metric",), ("Value", "num"), ("Percentile", None, None, glossary.percentile)]) %}
     {% for metric, label in [
       ('commits', 'Commits'), ('additions', 'Lines added'), ('churn', 'Churn lines'),
       ('significance', 'Significance'), ('prs_merged', 'PRs merged'), ('reviews', 'Reviews')
@@ -40,29 +43,30 @@
       <td class="num">{{ me[metric] if metric != 'significance' else me.significance | float_fmt }}</td>
       <td>
         <div class="progressbar"><div style="width: {{ pval | pct }}%"></div></div>
-        <span class="muted small">P{{ pval | pct }}</span>
+        <span class="helper small">P{{ pval | pct }}</span>
       </td>
     </tr>
     {% endfor %}
-  </table>
+  {% endcall %}
 </div>
 {% else %}
 <div class="banner warn">No activity for this person in the selected period and scope.</div>
 {% endif %}
 
 <div class="panel">
-  <h2>Activity trend</h2>
-  <div class="chart-wrap"><canvas id="trend"></canvas></div>
+  <h2>Activity trend {{ c.info(glossary.trend) }}</h2>
+  {{ c.chart("trend", "/api/charts/trend?range=" ~ period.key ~ "&person_id=" ~ person.id) }}
 </div>
 
 <div class="panel">
-  <h2>Per-repository split</h2>
-  <table>
-    <tr>
-      <th>Repo</th><th class="num">Commits</th><th class="num">Added</th>
-      <th class="num">Churn</th><th class="num">Significance</th>
-      <th class="num">PRs merged</th><th class="num">Reviews</th>
-    </tr>
+  <h2>Per-repository split {{ c.info(glossary.per_repo_split) }}</h2>
+  {% call c.table("Where this person's work landed in " ~ period.label,
+                  [("Repo",), ("Commits", "num", None, glossary.commits),
+                   ("Added", "num", "lines", glossary.additions),
+                   ("Churn", "num", "lines", glossary.churn),
+                   ("Significance", "num", None, glossary.significance),
+                   ("PRs merged", "num", None, glossary.prs_merged),
+                   ("Reviews", "num", None, glossary.reviews)]) %}
     {% for r in split %}
     <tr>
       <td><a href="/repos/{{ r.repo_id }}">{{ r.org_login }}/{{ r.name }}</a></td>
@@ -74,31 +78,8 @@
       <td class="num">{{ r.reviews | int_fmt }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="7" class="muted">Nothing in this period.</td></tr>
+    {{ c.empty_row(7, "Nothing in this period.") }}
     {% endfor %}
-  </table>
+  {% endcall %}
 </div>
-
-<script>
-fetch(window.location.origin + '/api/trend?range={{ period.key }}&person_id={{ person.id }}').then(r => r.json()).then(data => {
-  new Chart(document.getElementById('trend'), {
-    type: 'line',
-    data: {
-      labels: data.labels,
-      datasets: [
-        {label: 'Commits', data: data.commits, borderColor: '#4c9aff', backgroundColor: 'rgba(76,154,255,0.15)', fill: true, tension: 0.25},
-        {label: 'Significance', data: data.significance, borderColor: '#3fb96f', tension: 0.25}
-      ]
-    },
-    options: {
-      maintainAspectRatio: false,
-      plugins: {legend: {labels: {color: '#8b98a5'}}},
-      scales: {
-        x: {ticks: {color: '#8b98a5', maxTicksLimit: 12}, grid: {color: '#2a333d'}},
-        y: {ticks: {color: '#8b98a5'}, grid: {color: '#2a333d'}}
-      }
-    }
-  });
-});
-</script>
 {% endblock %}

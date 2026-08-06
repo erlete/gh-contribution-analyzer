@@ -13,15 +13,17 @@ from gca import __version__
 from gca.config import get_settings
 from gca.db.engine import get_session_factory
 from gca.services.orgs import has_validated_org
-from gca.services.settings import SettingsStore
+from gca.web.context import PERIOD_COOKIE, RANGE_CHOICES
 from gca.web.routers import (
     dashboard,
     manage,
     misc,
+    operations,
     orgs,
     people,
     reports,
     repos,
+    research,
     setup,
 )
 from gca.web.routers import (
@@ -38,11 +40,6 @@ _UNSAFE_METHODS = ("POST", "PUT", "PATCH", "DELETE")
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    factory = get_session_factory()
-    async with factory() as session:
-        store = SettingsStore(session)
-        await store.seed_from_env(get_settings())
-        await session.commit()
     Path(get_settings().reports_dir).mkdir(parents=True, exist_ok=True)
     yield
 
@@ -79,6 +76,33 @@ def create_app() -> FastAPI:
         return await call_next(request)
 
     @app.middleware("http")
+    async def persist_period(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """Keep the selected timeframe across navigation: an explicit range
+        or custom window in the URL is stored in a cookie that parse_range
+        falls back to when a page is opened without one."""
+        response = await call_next(request)
+        custom_from = request.query_params.get("from", "")
+        range_key = request.query_params.get("range", "")
+        if custom_from:
+            custom_to = request.query_params.get("to", "")
+            response.set_cookie(
+                PERIOD_COOKIE,
+                f"custom:{custom_from}:{custom_to}",
+                max_age=60 * 60 * 24 * 30,
+                samesite="lax",
+            )
+        elif range_key in RANGE_CHOICES:
+            response.set_cookie(
+                PERIOD_COOKIE,
+                range_key,
+                max_age=60 * 60 * 24 * 30,
+                samesite="lax",
+            )
+        return response
+
+    @app.middleware("http")
     async def setup_gate(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
@@ -100,8 +124,10 @@ def create_app() -> FastAPI:
     app.include_router(repos.router)
     app.include_router(people.router)
     app.include_router(manage.router)
+    app.include_router(operations.router)
     app.include_router(orgs.router)
     app.include_router(reports.router)
+    app.include_router(research.router)
     app.include_router(settings_router.router)
     return app
 

@@ -4,23 +4,28 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Contribution Analyzer{% endblock %}</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%273%27 fill=%27%234c9aff%27/%3E%3Ctext x=%278%27 y=%2712%27 font-size=%2710%27 text-anchor=%27middle%27 fill=%27%230b1017%27 font-family=%27monospace%27%3Eg%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 fill=%27%230f62fe%27/%3E%3Ctext x=%278%27 y=%2712%27 font-size=%2710%27 text-anchor=%27middle%27 fill=%27%23ffffff%27 font-family=%27monospace%27%3Eg%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/app.css">
   <script src="/static/vendor/htmx.min.js" defer></script>
-  <script src="/static/vendor/chart.umd.js"></script>
+  <script src="/static/vendor/echarts.min.js"></script>
+  <script src="/static/charts.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body>
+<a class="skip-link" href="#content">Skip to content</a>
 <header class="topbar">
   <div class="brand">gh<span>::</span>contribution-analyzer</div>
-  <nav class="main">
+  <nav class="main" aria-label="Primary">
     {% set current = request.url.path %}
     <a href="/" class="{{ 'active' if current == '/' }}">Dashboard</a>
-    <a href="/repos" class="{{ 'active' if current.startswith('/repos') }}">Repos</a>
+    <a href="/repos" class="{{ 'active' if current.startswith('/repos') }}">Repositories</a>
     <a href="/people" class="{{ 'active' if current.startswith('/people') }}">People</a>
-    <a href="/manage" class="{{ 'active' if current.startswith('/manage') }}">Identity</a>
-    <a href="/orgs" class="{{ 'active' if current.startswith('/orgs') }}">Orgs</a>
+    <a href="/research" class="{{ 'active' if current.startswith('/research') }}">Research</a>
+    <a href="/manage" class="{{ 'active' if current.startswith('/manage') }}">Identities</a>
+    <a href="/orgs" class="{{ 'active' if current.startswith('/orgs') }}">Organizations</a>
     <a href="/reports" class="{{ 'active' if current.startswith('/reports') }}">Reports</a>
+    <a href="/operations" class="{{ 'active' if current.startswith('/operations') }}">Operations</a>
     <a href="/settings" class="{{ 'active' if current.startswith('/settings') }}">Settings</a>
   </nav>
   <div class="spacer"></div>
@@ -29,32 +34,32 @@
     <div class="dropdown">
       <form method="get" action="/scope">
         {% for org in scope.orgs %}
-        <label>
+        <label class="choice">
           <input type="checkbox" name="orgs" value="{{ org.id }}"
                  {{ 'checked' if not scope.selected_ids or org.id in scope.selected_ids }}>
-          {{ org.login }}
+          <span>{{ org.login }}</span>
         </label>
         {% endfor %}
         <input type="hidden" name="next" value="{{ request.url.path }}">
-        <div class="actions" style="margin-top:0.6rem">
-          <button type="submit">Apply</button>
+        <div class="actions mt-03">
+          <button type="submit" class="small">Apply</button>
         </div>
       </form>
     </div>
   </details>
 </header>
-<main>
+<main id="content">
   {% if request.query_params.get('msg') %}
   <div class="banner ok">{{ request.query_params.get('msg') }}</div>
   {% endif %}
   {% for org in scope.orgs if org.sync_status == 'degraded' %}
-  <div class="banner warn">
+  <div class="banner error">
     Org <strong>{{ org.login }}</strong> is degraded: {{ org.sync_error }}
-    <a href="/orgs">review</a>
+    <a href="/orgs">Review</a>
   </div>
   {% endfor %}
   {% if mail_error %}
-  <div class="banner warn">Email delivery is failing: {{ mail_error }} <a href="/settings">settings</a></div>
+  <div class="banner warn">Email delivery is failing: {{ mail_error }} <a href="/settings">Open settings</a></div>
   {% endif %}
   {% block content %}{% endblock %}
 </main>

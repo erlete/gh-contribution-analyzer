@@ -1,5 +1,6 @@
 {% extends "report_base.html" %}
 {% block body %}
+{% if selection_line %}<div class="intro">{{ selection_line }}</div>{% endif %}
 <h2>Key numbers</h2>
 <div class="kpis">
   <div class="kpi"><div class="v">{{ totals.commits | int_fmt }}</div><div class="l">Commits</div></div>
@@ -13,10 +14,8 @@
   <div class="kpi"><div class="v">{{ totals.active_repos | int_fmt }}</div><div class="l">Active repos</div></div>
 </div>
 
-{% if chart %}
-<h2>Activity trend</h2>
-<img class="chart" src="{{ chart }}" alt="trend">
-{% endif %}
+{% import "_macros.html" as macros %}
+{{ macros.chart_block(chart) }}
 
 <h2>Contributors</h2>
 <table>

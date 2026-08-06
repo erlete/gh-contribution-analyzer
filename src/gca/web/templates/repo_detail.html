@@ -1,81 +1,63 @@
 {% extends "base.html" %}
+{% import "_components.html" as c %}
 {% block title %}{{ org.login }}/{{ repo.name }}, Contribution Analyzer{% endblock %}
 {% block content %}
-<h1>{{ org.login }}/{{ repo.name }}
-  {% if repo.is_private %}<span class="pill">private</span>{% endif %}
-  {% if repo.is_archived %}<span class="pill">archived</span>{% endif %}
-  {% if repo.is_fork %}<span class="pill">fork</span>{% endif %}
+<h1 class="page-title">{{ org.login }}/{{ repo.name }}
+  {% if repo.is_private %}{{ c.tag("private", "purple") }}{% endif %}
+  {% if repo.is_archived %}{{ c.tag("archived") }}{% endif %}
+  {% if repo.is_fork %}{{ c.tag("fork", "teal") }}{% endif %}
 </h1>
-<p class="muted small">
+<p class="muted small mb-05">
   Default branch {{ repo.default_branch }}, clone {{ repo.clone_status.value }},
   last fetched {{ repo.last_fetched_at or 'never' }}
-  {% if repo.clone_error %}<span class="pill bad">{{ repo.clone_error }}</span>{% endif %}
+  {% if repo.clone_error %}{{ c.tag(repo.clone_error, "red") }}{% endif %}
 </p>
 
 {% include "_rangebar.html" %}
 
-<div hx-get="/partials/insight?view=repo&repo_id={{ repo.id }}&range={{ period.key }}" hx-trigger="load" hx-swap="outerHTML"></div>
+<div hx-get="/partials/insight?view=repo&repo_id={{ repo.id }}&range={{ period.key }}" hx-trigger="load" hx-swap="outerHTML">
+  <div class="insight"><div class="tag-line">Insight</div><div class="skeleton"></div></div>
+</div>
 
-<div class="cards">
-  <div class="card"><div class="value">{{ totals.commits | int_fmt }}</div><div class="label">Commits</div></div>
-  <div class="card"><div class="value">{{ totals.additions | int_fmt }}</div><div class="label">Lines added</div></div>
-  <div class="card"><div class="value">{{ totals.deletions | int_fmt }}</div><div class="label">Lines deleted</div></div>
-  <div class="card"><div class="value">{{ totals.churn_ratio | pct }}%</div><div class="label">Churn ratio</div></div>
-  <div class="card"><div class="value">{{ totals.significance | float_fmt }}</div><div class="label">Significance</div></div>
-  <div class="card"><div class="value">{{ totals.prs_merged | int_fmt }}</div><div class="label">PRs merged</div></div>
-  <div class="card"><div class="value">{{ totals.reviews | int_fmt }}</div><div class="label">Reviews</div></div>
+<div class="cards count-7">
+  {{ c.kpi(totals.commits | int_fmt, "Commits", help=glossary.commits) }}
+  {{ c.kpi(totals.additions | int_fmt, "Lines added", help=glossary.additions) }}
+  {{ c.kpi(totals.deletions | int_fmt, "Lines deleted", help=glossary.deletions) }}
+  {{ c.kpi((totals.churn_ratio | pct) ~ "%", "Churn ratio", help=glossary.churn_ratio) }}
+  {{ c.kpi(totals.significance | float_fmt, "Significance", help=glossary.significance) }}
+  {{ c.kpi(totals.prs_merged | int_fmt, "PRs merged", help=glossary.prs_merged) }}
+  {{ c.kpi(totals.reviews | int_fmt, "Reviews", help=glossary.reviews) }}
 </div>
 
 <div class="panel">
-  <h2>Activity trend</h2>
-  <div class="chart-wrap"><canvas id="trend"></canvas></div>
+  <h2>Activity trend {{ c.info(glossary.trend) }}</h2>
+  {{ c.chart("trend", "/api/charts/repo-activity?range=" ~ period.key ~ "&repo_id=" ~ repo.id) }}
 </div>
 
 <div class="panel">
-  <h2>Contributors</h2>
-  <table>
-    <tr>
-      <th>Person</th><th class="num">Commits</th><th class="num">Added</th>
-      <th class="num">Churn</th><th class="num">Significance</th>
-      <th class="num">PRs</th><th class="num">Reviews</th><th class="num">Pctl</th>
-    </tr>
+  <h2>Contributors {{ c.info(glossary.contributors) }}</h2>
+  {% call c.table("Contributors to this repository in " ~ period.label,
+                  [("Person",), ("Commits", "num", None, glossary.commits),
+                   ("Added", "num", "lines", glossary.additions),
+                   ("Churn", "num", "%", glossary.churn_ratio),
+                   ("Significance", "num", None, glossary.significance),
+                   ("PRs", "num", None, glossary.prs_merged),
+                   ("Reviews", "num", None, glossary.reviews),
+                   ("Pctl", "num", None, glossary.percentile)]) %}
     {% for p in contributors %}
     <tr>
       <td><a href="/people/{{ p.person_id }}">{{ p.display_name }}</a></td>
       <td class="num">{{ p.commits | int_fmt }}</td>
       <td class="num">{{ p.additions | int_fmt }}</td>
-      <td class="num">{{ p.churn_ratio | pct }}%</td>
+      <td class="num">{{ p.churn_ratio | pct }}</td>
       <td class="num">{{ p.significance | float_fmt }}</td>
       <td class="num">{{ p.prs_merged | int_fmt }}</td>
       <td class="num">{{ p.reviews | int_fmt }}</td>
-      <td class="num"><span class="pill accent">P{{ p.percentiles.get('significance') | pct }}</span></td>
+      <td class="num">{{ c.tag("P" ~ (p.percentiles.get('significance') | pct), "blue", outline=True) }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="8" class="muted">No contributions in this period.</td></tr>
+    {{ c.empty_row(8, "No contributions in this period.") }}
     {% endfor %}
-  </table>
+  {% endcall %}
 </div>
-
-<script>
-fetch(window.location.origin + '/api/trend?range={{ period.key }}&repo_id={{ repo.id }}').then(r => r.json()).then(data => {
-  new Chart(document.getElementById('trend'), {
-    type: 'bar',
-    data: {
-      labels: data.labels,
-      datasets: [
-        {label: 'Additions', data: data.additions, backgroundColor: 'rgba(63,185,111,0.6)'},
-        {label: 'Deletions', data: data.deletions.map(v => -v), backgroundColor: 'rgba(229,83,75,0.6)'}
-      ]
-    },
-    options: {
-      maintainAspectRatio: false,
-      plugins: {legend: {labels: {color: '#8b98a5'}}},
-      scales: {
-        x: {stacked: true, ticks: {color: '#8b98a5', maxTicksLimit: 12}, grid: {color: '#2a333d'}},
-        y: {stacked: true, ticks: {color: '#8b98a5'}, grid: {color: '#2a333d'}}
-      }
-    }
-  });
-});
-</script>
 {% endblock %}

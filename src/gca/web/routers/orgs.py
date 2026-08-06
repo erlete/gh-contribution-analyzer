@@ -20,7 +20,7 @@ from gca.models import (
     RepoFilter,
     SyncRun,
 )
-from gca.services import membership
+from gca.services import audit, membership
 from gca.services.orgs import add_org, revalidate, update_token
 from gca.services.settings import SettingsStore
 from gca.sync.api import GitHubClient
@@ -119,6 +119,7 @@ async def orgs_view(request: Request, session: SessionDep) -> Response:
             "filter_names": filter_names,
             "repo_names": repo_names,
             "recent_runs": recent_runs,
+            "org_logins": {org.id: org.login for org in orgs},
             "persons": persons,
             "person_filter_entries": person_filter_entries,
             "member_counts": member_counts,
@@ -136,6 +137,12 @@ async def orgs_add(
     try:
         org = await add_org(session, login, token)
         await _request_sync(session, org.id)
+        await audit.record(
+            session,
+            kind="org.added",
+            subject=org.login,
+            message=f"Organization {org.login} connected, first sync queued",
+        )
         await session.commit()
         message = f"Organization {org.login} connected, sync queued"
     except Exception as exc:
@@ -150,6 +157,12 @@ async def orgs_token(
 ) -> RedirectResponse:
     try:
         await update_token(session, org_id, token)
+        await audit.record(
+            session,
+            kind="org.token_updated",
+            subject=str(org_id),
+            message="Organization token replaced and validated",
+        )
         await session.commit()
         message = "Token updated and validated"
     except Exception as exc:
@@ -169,6 +182,12 @@ async def orgs_revalidate(session: SessionDep, org_id: int) -> RedirectResponse:
 @router.post("/orgs/{org_id}/sync")
 async def orgs_sync_now(session: SessionDep, org_id: int) -> RedirectResponse:
     await _request_sync(session, org_id)
+    await audit.record(
+        session,
+        kind="sync.requested",
+        subject=str(org_id),
+        message="Manual sync requested",
+    )
     await session.commit()
     return RedirectResponse(
         "/orgs?msg=Sync queued, the worker picks it up within 30 seconds",
@@ -180,8 +199,14 @@ async def orgs_sync_now(session: SessionDep, org_id: int) -> RedirectResponse:
 async def orgs_toggle_sync(session: SessionDep, org_id: int) -> RedirectResponse:
     org = await session.get_one(Org, org_id)
     org.sync_enabled = not org.sync_enabled
-    await session.commit()
     state = "enabled" if org.sync_enabled else "paused"
+    await audit.record(
+        session,
+        kind="org.sync_toggled",
+        subject=org.login,
+        message=f"Scheduled sync {state} for {org.login}",
+    )
+    await session.commit()
     return RedirectResponse(f"/orgs?msg=Scheduled sync {state}", status_code=303)
 
 
@@ -194,6 +219,12 @@ async def orgs_remove(session: SessionDep, org_id: int) -> RedirectResponse:
     await session.delete(org)
     await session.flush()
     await prune_orphans(session)
+    await audit.record(
+        session,
+        kind="org.removed",
+        subject=login,
+        message=f"Organization {login} removed with all derived data",
+    )
     await session.commit()
     return RedirectResponse(
         f"/orgs?msg=Organization {login} removed with all derived data;"
@@ -221,6 +252,15 @@ async def orgs_repo_filters(
     for name in sorted(listed):
         session.add(RepoFilter(org_id=org_id, repo_name=name))
     _apply_repo_inclusion(org, await _org_repos(session, org_id), listed)
+    await audit.record(
+        session,
+        kind="policy.repo_filters",
+        subject=org.login,
+        message=(
+            f"Repository filters updated for {org.login}: mode {mode},"
+            f" {len(listed)} listed"
+        ),
+    )
     await session.commit()
     return RedirectResponse(
         f"/orgs?msg=Repository filters updated for {org.login}", status_code=303
@@ -263,8 +303,14 @@ async def orgs_toggle_forks(session: SessionDep, org_id: int) -> RedirectRespons
     org.ignore_forks = not org.ignore_forks
     listed = await _listed_repo_names(session, org_id)
     _apply_repo_inclusion(org, await _org_repos(session, org_id), listed)
-    await session.commit()
     state = "ignored everywhere" if org.ignore_forks else "included again"
+    await audit.record(
+        session,
+        kind="policy.forks",
+        subject=org.login,
+        message=f"Forks of {org.login} are now {state}",
+    )
+    await session.commit()
     return RedirectResponse(
         f"/orgs?msg=Forks of {org.login} are now {state}", status_code=303
     )
@@ -278,6 +324,12 @@ async def orgs_toggle_members(session: SessionDep, org_id: int) -> RedirectRespo
     org = await session.get_one(Org, org_id, options=[selectinload(Org.credential)])
     if org.members_only:
         org.members_only = False
+        await audit.record(
+            session,
+            kind="policy.members_only",
+            subject=org.login,
+            message=f"Members-only disabled for {org.login}",
+        )
         await session.commit()
         return RedirectResponse(
             f"/orgs?msg=Members-only disabled for {org.login}, external people"
@@ -297,6 +349,12 @@ async def orgs_toggle_members(session: SessionDep, org_id: int) -> RedirectRespo
             session, org.id, [(m.login, m.node_id) for m in member_infos]
         )
         org.members_only = True
+        await audit.record(
+            session,
+            kind="policy.members_only",
+            subject=org.login,
+            message=f"Members-only enabled for {org.login}: {stored} members",
+        )
         await session.commit()
         message = (
             f"Members-only enabled for {org.login}: {stored} members,"
@@ -326,6 +384,15 @@ async def orgs_person_filters(
     await session.execute(sa.delete(PersonFilter).where(PersonFilter.org_id == org_id))
     for pid in person_ids:
         session.add(PersonFilter(org_id=org_id, person_id=pid))
+    await audit.record(
+        session,
+        kind="policy.person_filters",
+        subject=org.login,
+        message=(
+            f"Person filters updated for {org.login}: mode {mode},"
+            f" {len(person_ids)} listed"
+        ),
+    )
     await session.commit()
     return RedirectResponse(
         f"/orgs?msg=Person filters updated for {org.login}", status_code=303

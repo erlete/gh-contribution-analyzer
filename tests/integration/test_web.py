@@ -119,14 +119,29 @@ async def test_full_flow_after_setup(client: httpx2.AsyncClient) -> None:
     assert response.status_code == 303
     assert response.headers["location"].startswith("/orgs")
 
-    for path in ("/", "/repos", "/people", "/manage", "/orgs", "/reports", "/settings"):
+    for path in (
+        "/",
+        "/repos",
+        "/people",
+        "/manage",
+        "/orgs",
+        "/reports",
+        "/operations",
+        "/settings",
+    ):
         page = await client.get(path)
         assert page.status_code == 200, path
         assert "gh" in page.text
 
-    trend = await client.get("/api/trend?range=30d")
+    trend = await client.get("/api/charts/trend?range=30d")
     assert trend.status_code == 200
-    assert trend.json()["labels"] == []
+    option = trend.json()
+    assert option["xAxis"]["data"] == []
+    assert [s["name"] for s in option["series"]] == ["Commits", "Significance"]
+
+    performance = await client.get("/api/charts/people-performance?range=30d")
+    assert performance.status_code == 200
+    assert performance.json()["yAxis"]["data"] == []
 
     insight = await client.get("/partials/insight?view=dashboard")
     assert insight.status_code == 200

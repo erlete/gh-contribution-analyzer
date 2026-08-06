@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/erlete/gh-contribution-analyzer/compare/v0.2.0...v0.3.0) (2026-08-06)
+
+
+### Features
+
+* identity attribution overhaul, research tab and dashboard polish ([#9](https://github.com/erlete/gh-contribution-analyzer/issues/9)) ([f02e7e9](https://github.com/erlete/gh-contribution-analyzer/commit/f02e7e9249010efdc44978222c53e39a590e1aed))
+
 ## [0.2.0](https://github.com/erlete/gh-contribution-analyzer/compare/v0.1.2...v0.2.0) (2026-08-05)
 
 

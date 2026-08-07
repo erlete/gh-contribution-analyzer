@@ -16,7 +16,7 @@ from gca.ai.insights import insight_for
 from gca.charts import ChartSpec, Series, palettes, render_echarts
 from gca.db.engine import get_session
 from gca.models import Org, Person, Repo, Research
-from gca.services import insight_context, membership, research, stats
+from gca.services import drilldown, insight_context, membership, research, stats
 from gca.web.context import RANGE_CHOICES, SCOPE_COOKIE, get_scope, parse_range
 from gca.web.deps import templates
 
@@ -116,6 +116,50 @@ async def palette_items(request: Request, session: SessionDep) -> JSONResponse:
         for r in researches
     )
     return JSONResponse({"items": items})
+
+
+@router.get("/partials/drilldown", response_class=HTMLResponse)
+async def drilldown_partial(
+    request: Request,
+    session: SessionDep,
+    person_id: int,
+    repo_id: int,
+    limit: int = 50,
+) -> Response:
+    """The raw commits and pull requests behind a person times repo row."""
+    period = parse_range(request)
+    limit = max(1, min(limit, 500))
+    commits, commit_total = await drilldown.commit_rows(
+        session,
+        person_id=person_id,
+        repo_id=repo_id,
+        start=period.start,
+        end=period.end,
+        limit=limit,
+    )
+    prs, pr_total = await drilldown.pr_rows(
+        session,
+        person_id=person_id,
+        repo_id=repo_id,
+        start=period.start,
+        end=period.end,
+        limit=limit,
+    )
+    return templates.TemplateResponse(
+        request,
+        "_drilldown.html",
+        {
+            "commits": commits,
+            "commit_total": commit_total,
+            "prs": prs,
+            "pr_total": pr_total,
+            "person_id": person_id,
+            "repo_id": repo_id,
+            "range_key": period.key,
+            "period_label": period.label,
+            "limit": limit,
+        },
+    )
 
 
 @router.get("/api/charts/trend")

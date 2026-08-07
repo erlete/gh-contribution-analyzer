@@ -347,6 +347,13 @@
   }
   .tag-strip .tag { flex: none; }
   table.data td.cell-rename { min-width: calc(var(--sp-13) * 1.8); }
+  /* Drill-down rows: the expanded raw-data strip reads as an inset layer. */
+  table.data td.drill-target {
+    padding: var(--sp-04) var(--sp-05);
+    background: var(--bg-layer-02);
+  }
+  .drilldown .subhead { margin-bottom: var(--sp-03); }
+  .drilldown > button { margin-top: var(--sp-03); }
   table.data td.cell-actions button,
   table.data td.cell-actions .btn { min-width: var(--sp-11); }
   /* Paired actions with variable labels (Keep X / Keep Y): split the cell

@@ -1,0 +1,44 @@
+{% import "_components.html" as c %}
+<div class="drilldown">
+  <h3 class="subhead">Commits ({{ commit_total }})</h3>
+  {% call c.table("Commits behind this row, newest first, " ~ period_label,
+                  [("Date",), ("Subject",), ("Added", "num"), ("Deleted", "num"),
+                   ("Significance", "num")], compact=True) %}
+    {% for r in commits %}
+    <tr>
+      <td class="helper small nowrap">{{ r.when }}</td>
+      <td><a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.subject }}</a>
+          <span class="helper small">{{ r.short }}</span></td>
+      <td class="num">{{ r.additions | int_fmt }}</td>
+      <td class="num">{{ r.deletions | int_fmt }}</td>
+      <td class="num">{{ r.significance | float_fmt }}</td>
+    </tr>
+    {% else %}
+    {{ c.empty_row(5, "No commits in this period.") }}
+    {% endfor %}
+  {% endcall %}
+  <h3 class="subhead">Pull requests ({{ pr_total }})</h3>
+  {% call c.table("Pull requests behind this row, newest first, " ~ period_label,
+                  [("Number",), ("Title",), ("State",), ("Opened",), ("Merged",)],
+                  compact=True) %}
+    {% for r in prs %}
+    <tr>
+      <td><a href="{{ r.url }}" target="_blank" rel="noopener">#{{ r.number }}</a></td>
+      <td>{{ r.title }}</td>
+      <td>{{ c.status_tag(r.state) }}</td>
+      <td class="helper small nowrap">{{ r.created }}</td>
+      <td class="helper small nowrap">{{ r.merged or "-" }}</td>
+    </tr>
+    {% else %}
+    {{ c.empty_row(5, "No pull requests opened in this period.") }}
+    {% endfor %}
+  {% endcall %}
+  {% if commit_total > commits | length or pr_total > prs | length %}
+  <button type="button" class="ghost small"
+          hx-get="/partials/drilldown?person_id={{ person_id }}&repo_id={{ repo_id }}&range={{ range_key }}&limit={{ limit * 2 }}"
+          hx-target="closest .drilldown" hx-swap="outerHTML">
+    Show more ({{ commits | length }} of {{ commit_total }} commits,
+    {{ prs | length }} of {{ pr_total }} pull requests shown)
+  </button>
+  {% endif %}
+</div>

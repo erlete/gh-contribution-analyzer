@@ -8,6 +8,10 @@ explain.
 """
 
 GLOSSARY: dict[str, str] = {
+    "drilldown": (
+        "Details opens the actual commits and pull requests behind this"
+        " row's numbers, each linking to GitHub."
+    ),
     "activity_calendar": (
         "One cell per day, darker means more significant work that day."
         " Shading compares days within the shown period only, so even a"

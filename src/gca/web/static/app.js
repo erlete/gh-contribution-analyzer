@@ -464,6 +464,16 @@ function initPalette() {
   });
 }
 
+/* Drill-down rows: a [data-drill="#row-id"] button toggles the hidden
+   sibling row whose content htmx loads on the first click. Delegated so
+   it survives htmx swaps. */
+document.addEventListener('click', function (e) {
+  var btn = e.target && e.target.closest ? e.target.closest('[data-drill]') : null;
+  if (!btn) return;
+  var row = document.querySelector(btn.dataset.drill);
+  if (row) row.hidden = !row.hidden;
+});
+
 document.addEventListener('DOMContentLoaded', function () {
   initComboboxes();
   initListBuilders();

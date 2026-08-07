@@ -300,3 +300,99 @@ async def test_all_time_context_mode(session: AsyncSession) -> None:
         all_time=True,
     )
     assert result.context["period_mode"] == "all time"
+
+
+def test_spotlight_validation_rules() -> None:
+    assert (
+        research.validate_block({"op": "spotlight", "entity": "people"})
+        == "Pick a valid category."
+    )
+    assert (
+        research.validate_block(
+            {"op": "spotlight", "entity": "cats", "category": "impact"}
+        )
+        == "Pick whether the block works on people or repositories."
+    )
+    # Scope-wide: no hand-picked lists required.
+    assert (
+        research.validate_block(
+            {"op": "spotlight", "entity": "repos", "category": "impact"}
+        )
+        is None
+    )
+
+
+async def test_spotlight_impact_ranks_people(session: AsyncSession) -> None:
+    _org, _repo_a, _repo_b, persons = await _seed(session)
+    result = await research.run_block(
+        session,
+        {"op": "spotlight", "entity": "people", "category": "impact"},
+        orgs=[],
+        start=START,
+        end=END,
+        period_label="March window",
+        all_time=False,
+    )
+    assert result.error is None
+    rows = result.tables[0].rows
+    # P1 has 26 significance in scope, P0 has 20, P2 has 1.
+    assert [r[1].text for r in rows] == ["P1", "P0", "P2"]
+    assert [r[0].text for r in rows] == ["1", "2", "3"]
+    assert result.charts[0].labels[0] == "P1"
+    assert "P1 leads impact" in result.context["facts"][0]
+
+
+async def test_spotlight_quality_floor_excludes_small_samples(
+    session: AsyncSession,
+) -> None:
+    await _seed(session)
+    result = await research.run_block(
+        session,
+        {"op": "spotlight", "entity": "people", "category": "quality"},
+        orgs=[],
+        start=START,
+        end=END,
+        period_label="March window",
+        all_time=False,
+    )
+    assert result.error is None
+    # Nobody reaches 200 added lines in scope, so the floor empties the board.
+    assert result.tables[0].rows == []
+    assert any("excluded 3 of 3" in f for f in result.context["facts"])
+
+
+async def test_spotlight_momentum_uses_period_halves(session: AsyncSession) -> None:
+    _org, _repo_a, _repo_b, persons = await _seed(session)
+    result = await research.run_block(
+        session,
+        {"op": "spotlight", "entity": "people", "category": "momentum"},
+        orgs=[],
+        start=START,
+        end=END,
+        period_label="March window",
+        all_time=False,
+    )
+    assert result.error is None
+    rows = result.tables[0].rows
+    # P1: 10 first half vs 16 second (+6); P2: 0 vs 1 (+1); P0: 20 vs 0 (-20).
+    assert [r[1].text for r in rows] == ["P1", "P2", "P0"]
+    assert rows[0][2].text == "6.0"
+    assert rows[2][2].text == "-20.0"
+
+
+async def test_spotlight_repos_output(session: AsyncSession) -> None:
+    await _seed(session)
+    result = await research.run_block(
+        session,
+        {"op": "spotlight", "entity": "repos", "category": "output"},
+        orgs=[],
+        start=START,
+        end=END,
+        period_label="March window",
+        all_time=False,
+    )
+    assert result.error is None
+    rows = result.tables[0].rows
+    # core has 20 commits in scope, site 4; the excluded repo never appears.
+    assert [r[1].text for r in rows] == ["alpha/core", "alpha/site"]
+    assert rows[0][2].text == "20"

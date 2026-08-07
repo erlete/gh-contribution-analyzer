@@ -329,7 +329,10 @@ function initResearchComposer(root) {
   function apply() {
     var def = ops[opSelect.value] || { slots: [], info: '' };
     var slots = def.slots.slice();
-    if (slots.indexOf('entity') !== -1) {
+    // The entity chip swaps which hand-picked list shows; scope-wide ops
+    // (spotlight) carry "entity" without any list to swap.
+    if (slots.indexOf('entity') !== -1 &&
+        (def.slots.indexOf('people') !== -1 || def.slots.indexOf('repos') !== -1)) {
       var wanted = entitySelect && entitySelect.value === 'repos' ? 'repos' : 'people';
       slots = slots.filter(function (s) { return s !== 'people' && s !== 'repos'; });
       slots.push(wanted);

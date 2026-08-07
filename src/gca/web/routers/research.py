@@ -132,6 +132,10 @@ async def research_detail(
             "op_defs": research.OPS,
             "ops_config": _ops_config(),
             "metric_choices": research.METRIC_CHOICES,
+            "category_choices": [
+                (key, label)
+                for key, (label, _rule) in research.SPOTLIGHT_CATEGORIES.items()
+            ],
             "mail_error": None,
         },
     )
@@ -199,6 +203,8 @@ async def research_add_block(
                 block[slot] = int(value)
     if "metric" in slots:
         block["metric"] = str(form.get("metric", ""))
+    if "category" in slots:
+        block["category"] = str(form.get("category", ""))
     problem = research.validate_block(block)
     if problem is not None:
         return RedirectResponse(

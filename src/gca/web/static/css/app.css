@@ -662,6 +662,38 @@
     cursor: pointer;
   }
 
+  /* ---- calendar heatmap -------------------------------------------------- */
+
+  .heatmap-wrap { --hm-cell: 0.6875rem; overflow-x: auto; padding-bottom: var(--sp-02); }
+  .heatmap { display: flex; gap: var(--sp-01); width: max-content; }
+  .hm-col { display: flex; flex-direction: column; gap: var(--sp-01); }
+  .hm-cell { width: var(--hm-cell); height: var(--hm-cell); background: var(--bg-field-01); flex: none; }
+  .hm-cell.void { background: transparent; }
+  .hm-cell.l1 { background: color-mix(in srgb, var(--support-info) 25%, transparent); }
+  .hm-cell.l2 { background: color-mix(in srgb, var(--support-info) 45%, transparent); }
+  .hm-cell.l3 { background: color-mix(in srgb, var(--support-info) 70%, transparent); }
+  .hm-cell.l4 { background: var(--support-info); }
+  .heatmap-months {
+    display: grid;
+    gap: var(--sp-01);
+    margin-bottom: var(--sp-02);
+    color: var(--text-helper);
+    font-size: var(--type-label-01-size);
+    width: max-content;
+  }
+  .heatmap-months span { grid-row: 1; white-space: nowrap; }
+  .heatmap-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-01);
+    margin-top: var(--sp-03);
+    color: var(--text-helper);
+    font-size: var(--type-label-01-size);
+  }
+  .heatmap-legend span:first-child { margin-right: var(--sp-02); }
+  .heatmap-legend span:nth-last-child(-n+2) { margin-left: var(--sp-02); }
+  .hm-note { margin-left: var(--sp-04); }
+
   /* ---- command palette -------------------------------------------------- */
 
   .palette-hint {
@@ -691,6 +723,8 @@
     align-items: flex-start;
     padding: 10vh var(--sp-05) 0;
   }
+  /* The author display beats the UA [hidden] rule; restate it. */
+  .palette-overlay[hidden] { display: none; }
   .palette {
     width: 100%;
     max-width: calc(var(--sp-13) * 3.5);

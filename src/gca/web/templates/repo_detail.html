@@ -30,6 +30,11 @@
 </div>
 
 <div class="panel">
+  <h2>Activity calendar {{ c.info(glossary.activity_calendar) }}</h2>
+  {{ c.heatmap(heatmap) }}
+</div>
+
+<div class="panel">
   <h2>Activity trend {{ c.info(glossary.trend) }}</h2>
   {{ c.chart("trend", "/api/charts/repo-activity?range=" ~ period.key ~ "&repo_id=" ~ repo.id) }}
 </div>

@@ -191,6 +191,33 @@
 <div class="chart-wrap{{ ' tall' if tall }}" id="{{ id }}" data-chart data-src="{{ src }}"></div>
 {%- endmacro %}
 
+{# Calendar heatmap: server-shaped day grid (gca.web.heatmap.build_heatmap),
+   one column per week, Monday first. Pure markup: no chart library. #}
+{% macro heatmap(hm) -%}
+<div class="heatmap-wrap">
+  <div class="heatmap-months" style="grid-template-columns: repeat({{ hm.weeks | length }}, var(--hm-cell))">
+    {% for index, label in hm.months %}
+    <span style="grid-column-start: {{ index + 1 }}">{{ label }}</span>
+    {% endfor %}
+  </div>
+  <div class="heatmap">
+    {% for week in hm.weeks %}
+    <div class="hm-col">
+      {% for cell in week %}
+      <div class="hm-cell l{{ cell.level }}{{ ' void' if cell.day is none }}"{% if cell.title %} title="{{ cell.title }}"{% endif %}></div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  <div class="heatmap-legend">
+    <span>Less</span>
+    {% for l in range(5) %}<span class="hm-cell l{{ l }}"></span>{% endfor %}
+    <span>More</span>
+    {% if hm.clipped %}<span class="hm-note">showing the most recent 12 months</span>{% endif %}
+  </div>
+</div>
+{%- endmacro %}
+
 {% macro list_builder(field, options, values, empty_label, add_label="Add") -%}
 <div class="list-builder" data-field="{{ field }}" data-values="{{ values | tojson }}">
   <div class="lb-add">

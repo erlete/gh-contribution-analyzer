@@ -8,6 +8,12 @@ explain.
 """
 
 GLOSSARY: dict[str, str] = {
+    "activity_calendar": (
+        "One cell per day, darker means more significant work that day."
+        " Shading compares days within the shown period only, so even a"
+        " quiet stretch shows its busiest days. Periods longer than a year"
+        " show the most recent twelve months."
+    ),
     # Core metrics
     "commits": (
         "Number of commits, that is individual saved batches of code"

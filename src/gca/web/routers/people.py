@@ -12,6 +12,7 @@ from gca.models import Person
 from gca.services import stats
 from gca.web.context import RANGE_CHOICES, get_scope, parse_range
 from gca.web.deps import templates
+from gca.web.heatmap import build_heatmap
 
 router = APIRouter()
 
@@ -58,6 +59,13 @@ async def person_detail(
         start=period.start,
         end=period.end,
     )
+    series = await stats.timeseries(
+        session,
+        orgs=scope.selected_ids,
+        start=period.start,
+        end=period.end,
+        person_ids=[person_id],
+    )
     return templates.TemplateResponse(
         request,
         "person_detail.html",
@@ -69,6 +77,7 @@ async def person_detail(
             "me": me,
             "population": len(board),
             "split": split,
+            "heatmap": build_heatmap(series, start=period.start, end=period.end),
             "mail_error": None,
         },
     )

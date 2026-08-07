@@ -75,6 +75,57 @@
 </label>
 {%- endmacro %}
 
+{# Date entry: visible dd/mm/yyyy masked text input; the hidden input carries
+   the ISO value the server expects. The calendar button opens the native
+   picker (kept off-screen because native date inputs render the browser
+   locale, not dd/mm/yyyy). app.js wires masking, validation and the picker. #}
+{% macro date_input(name, aria, value="") -%}
+<span class="datefield" data-datefield>
+  <input type="text" class="date-text" inputmode="numeric" placeholder="dd/mm/yyyy"
+         autocomplete="off" maxlength="10" aria-label="{{ aria }}" data-iso="{{ value }}">
+  <input type="hidden" name="{{ name }}" value="{{ value }}">
+  <button type="button" class="date-cal" aria-label="Open calendar: {{ aria }}" tabindex="-1">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+  </button>
+  <input type="date" class="date-native" tabindex="-1" aria-hidden="true">
+</span>
+{%- endmacro %}
+
+{% macro date_field(name, label, value="", help="") -%}
+<label class="field">
+  <span class="label">{{ label }}</span>
+  {{ date_input(name, label, value) }}
+  {% if help %}<span class="field-help">{{ help }}</span>{% endif %}
+</label>
+{%- endmacro %}
+
+{# Filter-then-select combobox for entity pickers (people, repos). Free text
+   is never submitted: the hidden input only ever holds a value chosen from
+   the list, and blurring with unmatched text reverts to the last choice.
+   options: [(value, label), ...]. app.js drives filtering and keyboard. #}
+{% macro combobox(name, options, selected=None, placeholder="Type to filter", aria=None) -%}
+<span class="combobox" data-combobox>
+  <input type="text" class="cb-input" role="combobox" aria-expanded="false"
+         aria-autocomplete="list" placeholder="{{ placeholder }}" autocomplete="off"
+         {% if aria %}aria-label="{{ aria }}"{% endif %}>
+  <input type="hidden" {% if name %}name="{{ name }}"{% endif %} class="cb-value"
+         value="{{ selected if selected is not none else '' }}">
+  <ul class="cb-list" role="listbox" hidden>
+    {% for opt_value, opt_label in options %}
+    <li role="option" data-value="{{ opt_value }}"{% if selected is not none and opt_value | string == selected | string %} data-selected="1"{% endif %}>{{ opt_label }}</li>
+    {% endfor %}
+  </ul>
+</span>
+{%- endmacro %}
+
+{% macro combobox_field(name, label, options, selected=None, help="") -%}
+<label class="field">
+  <span class="label">{{ label }}</span>
+  {{ combobox(name, options, selected, aria=label) }}
+  {% if help %}<span class="field-help">{{ help }}</span>{% endif %}
+</label>
+{%- endmacro %}
+
 {% macro select_raw(name, options, selected=None, id=None) -%}
 <span class="select">
   <select {% if name %}name="{{ name }}"{% endif %}{% if id %} id="{{ id }}"{% endif %}>
@@ -143,7 +194,7 @@
 {% macro list_builder(field, options, values, empty_label, add_label="Add") -%}
 <div class="list-builder" data-field="{{ field }}" data-values="{{ values | tojson }}">
   <div class="lb-add">
-    {{ select_raw(None, options) }}
+    {{ combobox(None, options, aria="Filter candidates") }}
     <button type="button" class="secondary">{{ add_label }}</button>
   </div>
   <ul class="lb-items"></ul>

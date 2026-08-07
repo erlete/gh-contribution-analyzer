@@ -1,6 +1,115 @@
 /* Small vanilla-JS helpers shared by every page. No framework, no build. */
 
-/* List builder: a <select> of candidates plus an "Add" button feeding a
+/* Combobox: filter-then-select entity picker. The visible input only
+   filters; the hidden .cb-value input carries the chosen option's value,
+   so free text can never reach the server. Blurring with text that does
+   not match a choice reverts to the last selection (or clears). */
+function initComboboxes(root) {
+  (root || document).querySelectorAll('[data-combobox]').forEach(function (box) {
+    if (box.dataset.ready) return;
+    box.dataset.ready = '1';
+    var input = box.querySelector('.cb-input');
+    var hidden = box.querySelector('.cb-value');
+    var list = box.querySelector('.cb-list');
+    var items = Array.prototype.slice.call(list.querySelectorAll('li'));
+    var active = -1;
+
+    function visibleItems() {
+      return items.filter(function (li) {
+        return !li.hidden && !li.dataset.taken;
+      });
+    }
+
+    function open() {
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+    }
+
+    function close() {
+      list.hidden = true;
+      input.setAttribute('aria-expanded', 'false');
+      setActive(-1);
+    }
+
+    function setActive(index) {
+      var vis = visibleItems();
+      items.forEach(function (li) { li.classList.remove('active'); });
+      active = index;
+      if (index >= 0 && vis[index]) {
+        vis[index].classList.add('active');
+        vis[index].scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    function filter() {
+      var q = input.value.trim().toLowerCase();
+      items.forEach(function (li) {
+        li.hidden = q !== '' && li.textContent.toLowerCase().indexOf(q) === -1;
+      });
+      setActive(-1);
+    }
+
+    function choose(li) {
+      hidden.value = li.dataset.value;
+      input.value = li.textContent.trim();
+      box.dataset.label = input.value;
+      box.classList.remove('missing');
+      close();
+      hidden.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function revert() {
+      if (box.dataset.label && hidden.value) {
+        input.value = box.dataset.label;
+      } else {
+        input.value = '';
+        hidden.value = '';
+      }
+    }
+
+    var seeded = items.filter(function (li) { return li.dataset.selected; })[0];
+    if (seeded) { hidden.value = seeded.dataset.value; input.value = seeded.textContent.trim(); box.dataset.label = input.value; }
+
+    input.addEventListener('focus', function () { filter(); open(); });
+    input.addEventListener('input', function () { filter(); open(); });
+    input.addEventListener('keydown', function (e) {
+      var vis = visibleItems();
+      if (e.key === 'ArrowDown') { e.preventDefault(); if (list.hidden) open(); setActive(Math.min(active + 1, vis.length - 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(active - 1, 0)); }
+      else if (e.key === 'Enter') {
+        if (!list.hidden && vis.length) { e.preventDefault(); choose(vis[active >= 0 ? active : 0]); }
+      }
+      else if (e.key === 'Escape') { close(); revert(); }
+    });
+    list.addEventListener('pointerdown', function (e) {
+      var li = e.target.closest('li');
+      if (li && !li.dataset.taken) { e.preventDefault(); choose(li); }
+    });
+    input.addEventListener('blur', function () {
+      setTimeout(function () {
+        if (box.contains(document.activeElement)) return;
+        close();
+        if (input.value.trim() !== (box.dataset.label || '')) revert();
+      }, 120);
+    });
+  });
+}
+
+/* A named combobox with nothing chosen would submit an empty value the
+   server rejects with a bare 422; block the submit and flag the field
+   instead. Unnamed comboboxes (list builders) are exempt. */
+document.addEventListener('submit', function (e) {
+  var missing = false;
+  e.target.querySelectorAll('[data-combobox] .cb-value[name]').forEach(function (h) {
+    if (!h.value) {
+      missing = true;
+      h.closest('[data-combobox]').classList.add('missing');
+    }
+  });
+  if (missing) e.preventDefault();
+});
+
+/* List builder: a combobox of candidates plus an "Add" button feeding a
    scrollable list of chosen entries, one per line, each removable. Chosen
    values submit as hidden inputs named after data-field. Initial entries
    come from the data-values JSON attribute: [{value, label}, ...]. */
@@ -9,8 +118,11 @@ function initListBuilders(root) {
     if (builder.dataset.ready) return;
     builder.dataset.ready = '1';
     var field = builder.dataset.field;
-    var select = builder.querySelector('select');
-    var addBtn = builder.querySelector('.lb-add button');
+    var box = builder.querySelector('[data-combobox]');
+    var cbInput = box.querySelector('.cb-input');
+    var cbHidden = box.querySelector('.cb-value');
+    var options = Array.prototype.slice.call(box.querySelectorAll('.cb-list li'));
+    var addBtn = builder.querySelector('.lb-add > button');
     var list = builder.querySelector('.lb-items');
     var empty = builder.querySelector('.lb-empty');
 
@@ -23,10 +135,9 @@ function initListBuilders(root) {
 
     function sync() {
       var chosen = chosenValues();
-      Array.prototype.forEach.call(select.options, function (o) {
-        var taken = chosen.indexOf(o.value) !== -1;
-        o.disabled = taken;
-        o.hidden = taken;
+      options.forEach(function (li) {
+        if (chosen.indexOf(li.dataset.value) !== -1) li.dataset.taken = '1';
+        else delete li.dataset.taken;
       });
       if (empty) empty.style.display = list.children.length ? 'none' : '';
     }
@@ -53,10 +164,18 @@ function initListBuilders(root) {
       sync();
     }
 
-    addBtn.addEventListener('click', function () {
-      var option = select.selectedOptions[0];
-      if (option && !option.disabled) add(option.value, option.textContent.trim());
-    });
+    function addCurrent() {
+      var value = cbHidden.value;
+      var label = cbInput.value.trim();
+      if (!value) return;
+      add(value, label);
+      cbHidden.value = '';
+      cbInput.value = '';
+      delete box.dataset.label;
+    }
+
+    addBtn.addEventListener('click', addCurrent);
+    cbHidden.addEventListener('change', addCurrent);
 
     var seed = [];
     try { seed = JSON.parse(builder.dataset.values || '[]'); } catch (e) { seed = []; }
@@ -65,6 +184,69 @@ function initListBuilders(root) {
       else add(String(entry.value), entry.label);
     });
     sync();
+  });
+}
+
+/* Date fields: the visible input masks itself to dd/mm/yyyy while typing;
+   only a complete, real date lands in the hidden ISO input (anything
+   partial clears it, and the server treats empty as unset). The calendar
+   button forwards to a hidden native date input via showPicker(). */
+function initDateFields(root) {
+  (root || document).querySelectorAll('[data-datefield]').forEach(function (field) {
+    if (field.dataset.ready) return;
+    field.dataset.ready = '1';
+    var text = field.querySelector('.date-text');
+    var hidden = field.querySelector('input[type="hidden"]');
+    var native = field.querySelector('.date-native');
+    var calBtn = field.querySelector('.date-cal');
+
+    function toDisplay(iso) {
+      var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+      return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+    }
+
+    function commit() {
+      var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text.value);
+      if (m) {
+        var day = +m[1], month = +m[2], year = +m[3];
+        var probe = new Date(Date.UTC(year, month - 1, day));
+        if (probe.getUTCFullYear() === year && probe.getUTCMonth() === month - 1 &&
+            probe.getUTCDate() === day) {
+          hidden.value = year + '-' + m[2] + '-' + m[1];
+          native.value = hidden.value;
+          text.classList.remove('invalid');
+          return;
+        }
+      }
+      hidden.value = '';
+      native.value = '';
+      text.classList.toggle('invalid', text.value.trim() !== '');
+    }
+
+    text.addEventListener('input', function () {
+      var digits = text.value.replace(/\D/g, '').slice(0, 8);
+      var out = digits.slice(0, 2);
+      if (digits.length > 2) out += '/' + digits.slice(2, 4);
+      if (digits.length > 4) out += '/' + digits.slice(4);
+      text.value = out;
+      commit();
+    });
+    text.addEventListener('blur', commit);
+
+    calBtn.addEventListener('click', function () {
+      if (native.showPicker) {
+        try { native.showPicker(); } catch (e) { native.click(); }
+      } else {
+        native.click();
+      }
+    });
+    native.addEventListener('change', function () {
+      text.value = toDisplay(native.value);
+      commit();
+    });
+
+    var initial = hidden.value || text.dataset.iso || '';
+    if (initial) { text.value = toDisplay(initial); commit(); }
   });
 }
 
@@ -165,7 +347,9 @@ function initResearchComposer(root) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+  initComboboxes();
   initListBuilders();
+  initDateFields();
   initRowFilters();
   initAutosubmit();
   initResearchComposer();

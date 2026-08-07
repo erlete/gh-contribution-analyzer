@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from gca import __version__
 from gca.config import get_settings
 from gca.db.engine import get_session_factory
+from gca.reports.service import ensure_default_schedules
 from gca.services.orgs import has_validated_org
 from gca.web.context import PERIOD_COOKIE, RANGE_CHOICES
 from gca.web.routers import (
@@ -41,6 +42,9 @@ _UNSAFE_METHODS = ("POST", "PUT", "PATCH", "DELETE")
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     Path(get_settings().reports_dir).mkdir(parents=True, exist_ok=True)
+    async with get_session_factory()() as session:
+        await ensure_default_schedules(session)
+        await session.commit()
     yield
 
 

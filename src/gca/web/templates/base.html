@@ -55,11 +55,11 @@
   {% for org in scope.orgs if org.sync_status == 'degraded' %}
   <div class="banner error">
     Org <strong>{{ org.login }}</strong> is degraded: {{ org.sync_error }}
-    <a href="/orgs">Review</a>
+    <a href="/orgs" class="btn ghost small">Review</a>
   </div>
   {% endfor %}
   {% if mail_error %}
-  <div class="banner warn">Email delivery is failing: {{ mail_error }} <a href="/settings">Open settings</a></div>
+  <div class="banner warn">Email delivery is failing: {{ mail_error }} <a href="/settings" class="btn ghost small">Open settings</a></div>
   {% endif %}
   {% block content %}{% endblock %}
 </main>

@@ -59,19 +59,18 @@
     insight area falls back to plain data statements with the same structure;
     AI-generated text carries the AI chip.
   </p>
-  <div class="grid2">
-    <form method="post" action="/settings/ai" class="stack">
+  <form method="post" action="/settings/ai">
+    <div class="actions fill">
       {{ c.text_field("url", "Service URL", value=ai_raw.get('url', ''), placeholder="https://ai.example.com/v1") }}
       {{ c.text_field("key", "API key (leave empty to keep current)", type="password", placeholder="saved" if ai_raw.get('key_enc') else "optional") }}
       {{ c.text_field("model", "Model", value=ai_raw.get('model', ''), placeholder="qwen-max") }}
-      <div class="actions"><button type="submit">Save</button></div>
-    </form>
-    <div>
-      <form method="post" action="/settings/ai/test">
-        <button type="submit" class="secondary">Test AI endpoint</button>
-      </form>
     </div>
-  </div>
+    <div class="actions mt-03">
+      <button type="submit">Save</button>
+      <button type="submit" form="ai-test-form" class="secondary">Test AI endpoint</button>
+    </div>
+  </form>
+  <form id="ai-test-form" method="post" action="/settings/ai/test"></form>
 
   <h3 class="subhead">Generation instructions</h3>
   <p class="muted small mb-03">

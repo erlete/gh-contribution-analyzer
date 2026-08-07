@@ -31,9 +31,7 @@ async def _seed(session: AsyncSession) -> tuple[Person, Person, Repo]:
     session.add_all([repo, jane, other])
     await session.flush()
     ident = Identity(person_id=jane.id, kind=IdentityKind.GITHUB_LOGIN, login="jane")
-    ident2 = Identity(
-        person_id=other.id, kind=IdentityKind.GITHUB_LOGIN, login="other"
-    )
+    ident2 = Identity(person_id=other.id, kind=IdentityKind.GITHUB_LOGIN, login="other")
     session.add_all([ident, ident2])
     await session.flush()
     for index in range(3):

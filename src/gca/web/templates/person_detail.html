@@ -10,6 +10,16 @@
   {% endfor %}
   <a href="/manage" class="btn secondary small">Manage identities</a>
 </div>
+{% if ramp %}
+<p class="muted small mb-05">
+  First seen {{ ramp.first_day.strftime("%d/%m/%Y") }}, last active
+  {{ ramp.last_day.strftime("%d/%m/%Y") }}.
+  {% if ramp.weeks_to_first_pr is not none %}
+  First merged pull request {{ ramp.weeks_to_first_pr }}
+  week{{ 's' if ramp.weeks_to_first_pr != 1 }} after joining.
+  {% endif %}
+</p>
+{% endif %}
 
 {% include "_rangebar.html" %}
 

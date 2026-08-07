@@ -29,6 +29,10 @@
     <a href="/settings" class="{{ 'active' if current.startswith('/settings') }}">Settings</a>
   </nav>
   <div class="spacer"></div>
+  <button type="button" class="palette-hint" data-palette-open
+          aria-label="Open the command palette, Control K">
+    <kbd>Ctrl</kbd> <kbd>K</kbd>
+  </button>
   <details class="scope">
     <summary>{{ scope.label }}</summary>
     <div class="dropdown">
@@ -63,5 +67,14 @@
   {% endif %}
   {% block content %}{% endblock %}
 </main>
+<div class="palette-overlay" id="palette" hidden>
+  <div class="palette" role="dialog" aria-modal="true" aria-label="Command palette">
+    <input type="text" class="palette-input" autocomplete="off"
+           placeholder="Jump to a person, repository, research or page"
+           aria-label="Command palette search">
+    <ul class="palette-list" role="listbox" aria-label="Command palette results"></ul>
+    <div class="palette-help">Enter opens, arrow keys move, Esc closes</div>
+  </div>
+</div>
 </body>
 </html>

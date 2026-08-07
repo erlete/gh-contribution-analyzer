@@ -662,6 +662,72 @@
     cursor: pointer;
   }
 
+  /* ---- command palette -------------------------------------------------- */
+
+  .palette-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-02);
+    min-height: var(--size-sm);
+    padding: 0 var(--sp-03);
+    background: none;
+    border: var(--hairline) solid var(--border-subtle-01);
+    color: var(--text-secondary);
+    cursor: pointer;
+    margin-right: var(--sp-04);
+  }
+  .palette-hint:hover { background: var(--int-ghost-hover); color: var(--text-primary); }
+  .palette-hint kbd {
+    font-family: var(--font-mono);
+    font-size: var(--type-label-01-size);
+  }
+  .palette-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgb(0 0 0 / 0.55);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 10vh var(--sp-05) 0;
+  }
+  .palette {
+    width: 100%;
+    max-width: calc(var(--sp-13) * 3.5);
+    background: var(--bg-layer-01);
+    border: var(--hairline) solid var(--border-subtle-01);
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.5);
+  }
+  .palette-input { width: 100%; }
+  .palette-list {
+    list-style: none;
+    max-height: calc(var(--sp-13) * 2);
+    overflow-y: auto;
+  }
+  .palette-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--sp-04);
+    padding: var(--sp-03) var(--sp-04);
+    font-size: var(--type-body-compact-01-size);
+    cursor: pointer;
+  }
+  .palette-list li:hover,
+  .palette-list li.active { background: var(--bg-layer-hover-01); }
+  .palette-kind {
+    color: var(--text-helper);
+    font-size: var(--type-label-01-size);
+    letter-spacing: 0.32px;
+    text-transform: uppercase;
+  }
+  .palette-help {
+    padding: var(--sp-03) var(--sp-04);
+    border-top: var(--hairline) solid var(--border-subtle-01);
+    color: var(--text-helper);
+    font-size: var(--type-label-01-size);
+  }
+
   /* ---- combobox -------------------------------------------------------- */
 
   .combobox { position: relative; display: block; }

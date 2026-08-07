@@ -349,6 +349,121 @@ function initResearchComposer(root) {
   apply();
 }
 
+/* Command palette: Ctrl+K (or the topbar button) opens an overlay that
+   jumps to any person, repository, research, page or period switch. Items
+   load once per page from /api/palette; matching is substring-based with
+   prefix and word-start matches ranked first. */
+function initPalette() {
+  var overlay = document.getElementById('palette');
+  if (!overlay) return;
+  var input = overlay.querySelector('.palette-input');
+  var list = overlay.querySelector('.palette-list');
+  var items = null;
+  var filtered = [];
+  var active = 0;
+
+  function open() {
+    overlay.hidden = false;
+    input.value = '';
+    render('');
+    input.focus();
+  }
+
+  function close() {
+    overlay.hidden = true;
+  }
+
+  function load() {
+    if (items) return Promise.resolve(items);
+    return fetch('/api/palette')
+      .then(function (r) { return r.json(); })
+      .then(function (d) { items = d.items; return items; });
+  }
+
+  function score(label, q) {
+    var l = label.toLowerCase();
+    if (l.indexOf(q) === 0) return 0;
+    var idx = l.indexOf(q);
+    if (idx === -1) return -1;
+    var prev = l[idx - 1];
+    return prev === ' ' || prev === '/' ? 1 : 2;
+  }
+
+  function go(item) {
+    close();
+    location.href = item.url;
+  }
+
+  function render(q) {
+    load().then(function (all) {
+      q = q.trim().toLowerCase();
+      var scored = [];
+      all.forEach(function (item) {
+        if (!q) {
+          // Empty query: offer navigation and period switches, not the
+          // full entity dump.
+          if (item.kind === 'page' || item.kind === 'action') scored.push([0, item]);
+          return;
+        }
+        var s = score(item.label, q);
+        if (s >= 0) scored.push([s, item]);
+      });
+      scored.sort(function (a, b) {
+        return a[0] - b[0] || a[1].label.localeCompare(b[1].label);
+      });
+      filtered = scored.slice(0, 12).map(function (pair) { return pair[1]; });
+      active = 0;
+      list.innerHTML = '';
+      filtered.forEach(function (item, index) {
+        var li = document.createElement('li');
+        li.setAttribute('role', 'option');
+        var label = document.createElement('span');
+        label.textContent = item.label;
+        var kind = document.createElement('span');
+        kind.className = 'palette-kind';
+        kind.textContent = item.kind;
+        li.appendChild(label);
+        li.appendChild(kind);
+        if (index === 0) li.classList.add('active');
+        li.addEventListener('pointerdown', function (e) {
+          e.preventDefault();
+          go(item);
+        });
+        list.appendChild(li);
+      });
+    });
+  }
+
+  function move(delta) {
+    var lis = list.children;
+    if (!lis.length) return;
+    lis[active].classList.remove('active');
+    active = (active + delta + lis.length) % lis.length;
+    lis[active].classList.add('active');
+    lis[active].scrollIntoView({ block: 'nearest' });
+  }
+
+  input.addEventListener('input', function () { render(input.value); });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter') { if (filtered[active]) go(filtered[active]); }
+    else if (e.key === 'Escape') { close(); }
+  });
+  overlay.addEventListener('pointerdown', function (e) {
+    if (e.target === overlay) close();
+  });
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      if (overlay.hidden) open(); else close();
+    }
+  });
+  document.querySelectorAll('[data-palette-open]').forEach(function (btn) {
+    btn.addEventListener('click', open);
+  });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   initComboboxes();
   initListBuilders();
@@ -356,4 +471,5 @@ document.addEventListener('DOMContentLoaded', function () {
   initRowFilters();
   initAutosubmit();
   initResearchComposer();
+  initPalette();
 });

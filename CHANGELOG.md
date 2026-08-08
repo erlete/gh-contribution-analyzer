@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/erlete/gh-contribution-analyzer/compare/v0.3.0...v0.4.0) (2026-08-08)
+
+
+### Features
+
+* spotlight rankings, command palette, calendar heatmaps, drill-down and ramp-up analytics ([#11](https://github.com/erlete/gh-contribution-analyzer/issues/11)) ([4114bfc](https://github.com/erlete/gh-contribution-analyzer/commit/4114bfcc54b145f6e6b4e2c0c2596ff16fc33816))
+
 ## [0.3.0](https://github.com/erlete/gh-contribution-analyzer/compare/v0.2.0...v0.3.0) (2026-08-06)
 
 

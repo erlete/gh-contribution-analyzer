@@ -31,6 +31,10 @@ services:
   app:
     image: ghcr.io/erlete/gh-contribution-analyzer:${GCA_TAG:-latest}
     restart: unless-stopped
+    # Docker's init shim reaps any process that re-parents to PID 1;
+    # without it the Python entrypoint accumulates zombies from detached
+    # git maintenance until fork fails.
+    init: true
     env_file:
       - path: .env
         required: false
@@ -55,6 +59,7 @@ services:
   worker:
     image: ghcr.io/erlete/gh-contribution-analyzer:${GCA_TAG:-latest}
     restart: unless-stopped
+    init: true
     command: gca-worker
     env_file:
       - path: .env

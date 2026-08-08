@@ -109,8 +109,22 @@ class GitMirror:
             env.setdefault("GIT_ASKPASS", "/usr/local/bin/gca-askpass")
         else:
             env.pop("GCA_GIT_TOKEN", None)
+        # Auto maintenance must never detach: detached gc double-forks, the
+        # grandchild re-parents to the container's PID 1 (this worker) and
+        # becomes an unreaped zombie. ~200 repos on an hourly sync leaked
+        # ~450 zombies per hour until fork returned EAGAIN and every sync
+        # failed (prod incident 2026-08-07).
         result = subprocess.run(
-            ["git", "-c", "core.quotepath=off", *args],
+            [
+                "git",
+                "-c",
+                "core.quotepath=off",
+                "-c",
+                "maintenance.auto=false",
+                "-c",
+                "gc.autoDetach=false",
+                *args,
+            ],
             cwd=str(cwd) if cwd else None,
             env=env,
             capture_output=True,

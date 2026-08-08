@@ -20,8 +20,8 @@
         ("person", "Individual people (one document, a section per person)"),
         ("repo", "Individual repositories (one document, a section per repo)"),
       ]) }}
-      {{ c.text_field("date_from", "From", type="date") }}
-      {{ c.text_field("date_to", "To", type="date") }}
+      {{ c.date_field("date_from", "From") }}
+      {{ c.date_field("date_to", "To") }}
     </div>
     <div class="grid2">
       <div>
@@ -60,7 +60,7 @@
         {% set s = schedules.get((pk, rk)) %}
         <td>
           <label class="choice">
-            <input type="checkbox" name="sched-{{ pk }}-{{ rk }}" {{ 'checked' if s and s.enabled }}>
+            <input type="checkbox" name="sched-{{ pk }}-{{ rk }}" {{ 'checked' if (s.enabled if s else True) }}>
             <span class="helper small">{{ rk }}</span>
           </label>
         </td>
@@ -70,7 +70,7 @@
     {% endcall %}
     <div class="actions mt-03">
       <button type="submit">Save schedules</button>
-      <a href="/settings" class="helper small">Manage recipients in settings</a>
+      <a href="/settings" class="btn secondary">Manage recipients</a>
     </div>
   </form>
 </div>

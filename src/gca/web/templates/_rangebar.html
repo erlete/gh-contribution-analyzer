@@ -3,8 +3,9 @@
   <a href="?range={{ key }}" class="{{ 'active' if period.key == key }}">{{ item[1] }}</a>
   {% endfor %}
   <form method="get">
-    <input type="date" name="from" value="" title="From" aria-label="Custom range start">
-    <input type="date" name="to" value="" title="To" aria-label="Custom range end">
+    {% import "_components.html" as c %}
+    {{ c.date_input("from", "Custom range start") }}
+    {{ c.date_input("to", "Custom range end") }}
     <button type="submit" class="secondary small">Go</button>
   </form>
   <span class="plabel">{{ period.label }}</span>

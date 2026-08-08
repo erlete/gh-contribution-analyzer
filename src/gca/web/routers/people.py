@@ -9,9 +9,10 @@ from sqlalchemy.orm import selectinload
 
 from gca.db.engine import get_session
 from gca.models import Person
-from gca.services import stats
+from gca.services import rampup, stats
 from gca.web.context import RANGE_CHOICES, get_scope, parse_range
 from gca.web.deps import templates
+from gca.web.heatmap import build_heatmap
 
 router = APIRouter()
 
@@ -25,6 +26,9 @@ async def people_list(request: Request, session: SessionDep) -> Response:
     board = await stats.person_leaderboard(
         session, orgs=scope.selected_ids, start=period.start, end=period.end
     )
+    cohort = await rampup.cohort(
+        session, orgs=scope.selected_ids, start=period.start, end=period.end
+    )
     return templates.TemplateResponse(
         request,
         "people.html",
@@ -33,6 +37,7 @@ async def people_list(request: Request, session: SessionDep) -> Response:
             "period": period,
             "range_choices": RANGE_CHOICES,
             "board": board,
+            "cohort": cohort,
             "mail_error": None,
         },
     )
@@ -58,6 +63,16 @@ async def person_detail(
         start=period.start,
         end=period.end,
     )
+    series = await stats.timeseries(
+        session,
+        orgs=scope.selected_ids,
+        start=period.start,
+        end=period.end,
+        person_ids=[person_id],
+    )
+    ramp = await rampup.person_ramp(
+        session, person_id=person_id, orgs=scope.selected_ids
+    )
     return templates.TemplateResponse(
         request,
         "person_detail.html",
@@ -69,6 +84,8 @@ async def person_detail(
             "me": me,
             "population": len(board),
             "split": split,
+            "heatmap": build_heatmap(series, start=period.start, end=period.end),
+            "ramp": ramp,
             "mail_error": None,
         },
     )

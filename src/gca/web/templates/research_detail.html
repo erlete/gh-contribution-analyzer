@@ -79,6 +79,9 @@
       <div data-slot="metric">
         {{ c.select_field("metric", "Metric", metric_choices, selected="significance") }}
       </div>
+      <div data-slot="category">
+        {{ c.select_field("category", "Category", category_choices, selected="impact") }}
+      </div>
       <div data-slot="person">
         {{ c.select_field("person", "Person", person_options) }}
       </div>

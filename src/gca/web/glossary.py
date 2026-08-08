@@ -8,6 +8,33 @@ explain.
 """
 
 GLOSSARY: dict[str, str] = {
+    "joiners": (
+        "People whose first recorded activity in this scope falls inside"
+        " the selected period, with how fast they became productive."
+    ),
+    "leavers": (
+        "People whose activity stopped during the selected period, at"
+        " least four weeks before its end, so short pauses do not count."
+    ),
+    "weeks_to_first_pr": (
+        "Weeks from a person's first recorded activity to their first"
+        " merged pull request. A rough measure of onboarding speed."
+    ),
+    "weeks_to_steady": (
+        "Weeks from first activity until a week reaching the person's own"
+        " typical weekly output (their median active week). Needs at least"
+        " two active weeks to compute."
+    ),
+    "drilldown": (
+        "Details opens the actual commits and pull requests behind this"
+        " row's numbers, each linking to GitHub."
+    ),
+    "activity_calendar": (
+        "One cell per day, darker means more significant work that day."
+        " Shading compares days within the shown period only, so even a"
+        " quiet stretch shows its busiest days. Periods longer than a year"
+        " show the most recent twelve months."
+    ),
     # Core metrics
     "commits": (
         "Number of commits, that is individual saved batches of code"

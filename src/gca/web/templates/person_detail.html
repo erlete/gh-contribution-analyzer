@@ -10,6 +10,16 @@
   {% endfor %}
   <a href="/manage" class="btn secondary small">Manage identities</a>
 </div>
+{% if ramp %}
+<p class="muted small mb-05">
+  First seen {{ ramp.first_day.strftime("%d/%m/%Y") }}, last active
+  {{ ramp.last_day.strftime("%d/%m/%Y") }}.
+  {% if ramp.weeks_to_first_pr is not none %}
+  First merged pull request {{ ramp.weeks_to_first_pr }}
+  week{{ 's' if ramp.weeks_to_first_pr != 1 }} after joining.
+  {% endif %}
+</p>
+{% endif %}
 
 {% include "_rangebar.html" %}
 
@@ -54,6 +64,11 @@
 {% endif %}
 
 <div class="panel">
+  <h2>Activity calendar {{ c.info(glossary.activity_calendar) }}</h2>
+  {{ c.heatmap(heatmap) }}
+</div>
+
+<div class="panel">
   <h2>Activity trend {{ c.info(glossary.trend) }}</h2>
   {{ c.chart("trend", "/api/charts/trend?range=" ~ period.key ~ "&person_id=" ~ person.id) }}
 </div>
@@ -66,7 +81,8 @@
                    ("Churn", "num", "lines", glossary.churn),
                    ("Significance", "num", None, glossary.significance),
                    ("PRs merged", "num", None, glossary.prs_merged),
-                   ("Reviews", "num", None, glossary.reviews)]) %}
+                   ("Reviews", "num", None, glossary.reviews),
+                   ("", None, None, glossary.drilldown)]) %}
     {% for r in split %}
     <tr>
       <td><a href="/repos/{{ r.repo_id }}">{{ r.org_login }}/{{ r.name }}</a></td>
@@ -76,9 +92,18 @@
       <td class="num">{{ r.significance | float_fmt }}</td>
       <td class="num">{{ r.prs_merged | int_fmt }}</td>
       <td class="num">{{ r.reviews | int_fmt }}</td>
+      <td class="cell-actions">
+        <button type="button" class="ghost small" data-drill="#drill-r{{ r.repo_id }}"
+                hx-get="/partials/drilldown?person_id={{ person.id }}&repo_id={{ r.repo_id }}&range={{ period.key }}"
+                hx-target="#drill-r{{ r.repo_id }} .drill-target" hx-trigger="click once"
+                hx-swap="innerHTML">Details</button>
+      </td>
+    </tr>
+    <tr id="drill-r{{ r.repo_id }}" class="drill-row" hidden>
+      <td colspan="8" class="drill-target"><div class="skeleton"></div></td>
     </tr>
     {% else %}
-    {{ c.empty_row(7, "Nothing in this period.") }}
+    {{ c.empty_row(8, "Nothing in this period.") }}
     {% endfor %}
   {% endcall %}
 </div>

@@ -37,6 +37,35 @@ METRIC_CHOICES: tuple[tuple[str, str], ...] = (
 )
 _METRIC_LABELS = dict(METRIC_CHOICES)
 
+# Spotlight categories: label plus the plain-language ranking rule shown
+# in tooltips and stated to the AI. Ratio categories carry a
+# qualification floor so one lucky commit cannot top the board.
+SPOTLIGHT_CATEGORIES: dict[str, tuple[str, str]] = {
+    "output": ("Output", "total commits, with lines added alongside"),
+    "impact": ("Impact", "significance, the size-and-survival weighted measure"),
+    "quality": (
+        "Quality",
+        "churn ratio, lower is better; needs at least 200 lines added",
+    ),
+    "delivery": (
+        "Delivery",
+        "share of opened pull requests that merged; needs at least 3 opened",
+    ),
+    "collaboration": (
+        "Collaboration",
+        "reviews given (people) or reviews received on its pull requests"
+        " (repositories)",
+    ),
+    "consistency": (
+        "Consistency",
+        "share of the period's weeks with any activity; needs at least 5 commits",
+    ),
+    "momentum": (
+        "Momentum",
+        "significance in the second half of the period minus the first half",
+    ),
+}
+
 
 # Slot vocabulary: "people"/"people_b"/"repos" are repeatable pickers,
 # "person"/"person_b"/"repo"/"repo_b" single selects, "entity" switches
@@ -85,6 +114,16 @@ OPS: dict[str, OpDef] = {
             " and how many standard deviations above or below that average"
             " they sit (the z-score).",
             ("person",),
+        ),
+        OpDef(
+            "spotlight",
+            "Spotlight best and worst",
+            "Ranks everyone active in the current scope and period by the"
+            " chosen category and shows the strongest and weakest"
+            " performers. Ratio categories only rank subjects above a"
+            " minimum activity floor, stated in the block, so tiny samples"
+            " cannot top or sink the board.",
+            ("entity", "category"),
         ),
         OpDef(
             "correlate_person_repo",
@@ -258,8 +297,16 @@ def validate_block(block: dict[str, object]) -> str | None:
         entity = str(block.get("entity", ""))
         if entity not in ("people", "repos"):
             return "Pick whether the block works on people or repositories."
+        # Ops with hand-picked lists keep only the picker matching the
+        # entity choice; scope-wide ops (spotlight) have no lists at all.
+        has_lists = "people" in slots or "repos" in slots
         slots = [s for s in slots if s not in ("people", "repos", "entity")]
-        slots.append(entity)
+        if has_lists:
+            slots.append(entity)
+    if "category" in slots:
+        if str(block.get("category", "")) not in SPOTLIGHT_CATEGORIES:
+            return "Pick a valid category."
+        slots = [s for s in slots if s != "category"]
     for slot in slots:
         if slot in ("people", "people_b", "repos"):
             values = block.get(slot) or []
@@ -1776,11 +1823,205 @@ async def _volatility(ctx: _Ctx) -> BlockResult:
     )
 
 
+_SPOTLIGHT_LIMIT = 5
+
+
+@dataclass
+class _SpotlightEntry:
+    sid: int
+    name: str
+    link: str
+    score: float
+    detail: str
+
+
+async def _spotlight(ctx: _Ctx) -> BlockResult:
+    op = OPS["spotlight"]
+    entity = str(ctx.block.get("entity", "people"))
+    category = str(ctx.block.get("category", "impact"))
+    cat_label, cat_rule = SPOTLIGHT_CATEGORIES[category]
+    lower_is_better = category == "quality"
+    noun = "people" if entity == "people" else "repositories"
+
+    subjects: list[tuple[int, str, str, object]]
+    if entity == "people":
+        subjects = [
+            (s.person_id, s.display_name, f"/people/{s.person_id}", s)
+            for s in await stats.person_leaderboard(
+                ctx.session, orgs=ctx.orgs, start=ctx.start, end=ctx.end
+            )
+        ]
+    else:
+        subjects = [
+            (s.repo_id, f"{s.org_login}/{s.name}", f"/repos/{s.repo_id}", s)
+            for s in await stats.repo_leaderboard(
+                ctx.session, orgs=ctx.orgs, start=ctx.start, end=ctx.end
+            )
+        ]
+
+    weekly: dict[int, dict[date, dict[str, float]]] = {}
+    weeks: list[date] = []
+    if category in ("consistency", "momentum"):
+        ids = [sid for sid, _, _, _ in subjects]
+        weekly = await stats.weekly_by_entity(
+            ctx.session,
+            orgs=ctx.orgs,
+            start=ctx.start,
+            end=ctx.end,
+            by="person" if entity == "people" else "repo",
+            person_ids=ids if entity == "people" else None,
+            repo_ids=ids if entity == "repos" else None,
+        )
+        weeks = _weeks(ctx.start, ctx.end)
+
+    def week_significance(sid: int, week: date) -> float:
+        return weekly.get(sid, {}).get(week, {}).get("significance", 0.0)
+
+    entries: list[_SpotlightEntry] = []
+    for sid, name, link, s in subjects:
+        commits = int(getattr(s, "commits", 0) or 0)
+        additions = int(getattr(s, "additions", 0) or 0)
+        churn = int(getattr(s, "churn", 0) or 0)
+        significance = float(getattr(s, "significance", 0.0) or 0.0)
+        prs_opened = int(getattr(s, "prs_opened", 0) or 0)
+        prs_merged = int(getattr(s, "prs_merged", 0) or 0)
+        reviews = int(getattr(s, "reviews", 0) or 0)
+        if category == "output":
+            score = float(commits)
+            detail = f"{additions:,} lines added"
+        elif category == "impact":
+            score = round(significance, 1)
+            detail = f"{commits:,} commits"
+        elif category == "quality":
+            if additions < 200:
+                continue
+            score = round(churn / additions * 100, 1)
+            detail = f"{churn:,} churned of {additions:,} added"
+        elif category == "delivery":
+            if prs_opened < 3:
+                continue
+            score = round(prs_merged / prs_opened * 100, 1)
+            detail = f"{prs_merged:,} merged of {prs_opened:,} opened"
+        elif category == "collaboration":
+            score = float(reviews)
+            detail = f"{prs_merged:,} PRs merged"
+        elif category == "consistency":
+            if commits < 5:
+                continue
+            active = sum(1 for w in weeks if week_significance(sid, w) > 0)
+            score = round(active / len(weeks) * 100, 1) if weeks else 0.0
+            detail = f"active {active} of {len(weeks)} weeks"
+        else:  # momentum
+            half = len(weeks) // 2
+            first = sum(week_significance(sid, w) for w in weeks[:half])
+            second = sum(week_significance(sid, w) for w in weeks[half:])
+            score = round(second - first, 1)
+            detail = f"{first:,.0f} first half, {second:,.0f} second half"
+        entries.append(_SpotlightEntry(sid, name, link, score, detail))
+
+    ranked = sorted(
+        entries,
+        key=lambda e: (e.score if lower_is_better else -e.score, e.name.lower()),
+    )
+    split = len(ranked) > 2 * _SPOTLIGHT_LIMIT
+    top = ranked[:_SPOTLIGHT_LIMIT] if split else ranked
+    bottom = ranked[-_SPOTLIGHT_LIMIT:] if split else []
+    shown = top + bottom
+
+    def fmt_score(e: _SpotlightEntry) -> str:
+        if category in ("quality", "delivery", "consistency"):
+            return f"{e.score:.0f}%"
+        if category in ("impact", "momentum"):
+            return f"{e.score:,.1f}"
+        return f"{int(e.score):,}"
+
+    rank_of = {e.sid: i + 1 for i, e in enumerate(ranked)}
+    rows = [
+        [
+            Cell(str(rank_of[e.sid]), num=True),
+            Cell(e.name, link=e.link),
+            Cell(fmt_score(e), num=True),
+            Cell(e.detail),
+        ]
+        for e in shown
+    ]
+    headers: list[tuple[str | None, ...]] = [
+        ("Rank", "num"),
+        ("Person" if entity == "people" else "Repository",),
+        (cat_label, "num", None, f"Ranked by {cat_rule}."),
+        ("Detail",),
+    ]
+
+    up_color = palettes.DIVERGENT[12]
+    down_color = palettes.DIVERGENT[4]
+    axis = cat_label + (
+        " %" if category in ("quality", "delivery", "consistency") else ""
+    )
+    if lower_is_better:
+        axis += ", lower is better"
+    chart = ChartSpec(
+        kind="hbar",
+        labels=[e.name if len(e.name) <= 22 else e.name[:21] + "…" for e in shown],
+        series=[
+            Series(
+                name=cat_label,
+                values=[e.score for e in shown],
+                kind="bar",
+                item_colors=[up_color] * len(top) + [down_color] * len(bottom),
+            )
+        ],
+        axes=[axis],
+        description=(
+            f"Strongest and weakest {noun} by {cat_label.lower()}, {ctx.period_label}"
+        ),
+    )
+
+    facts = []
+    if ranked:
+        facts.append(
+            f"{ranked[0].name} leads {cat_label.lower()} among {noun}"
+            f" ({fmt_score(ranked[0])}, {ranked[0].detail})."
+        )
+        if len(ranked) > 1:
+            facts.append(
+                f"{ranked[-1].name} sits last of {len(ranked)} qualified"
+                f" ({fmt_score(ranked[-1])}, {ranked[-1].detail})."
+            )
+    skipped = len(subjects) - len(entries)
+    if skipped > 0:
+        facts.append(
+            f"Qualification floor ({cat_rule}) excluded {skipped} of"
+            f" {len(subjects)} active {noun}."
+        )
+    context = _base_context(ctx, op, facts)
+    context["category"] = cat_label
+    context["ranking_rule"] = cat_rule
+    context["entries"] = [
+        {"rank": rank_of[e.sid], "name": e.name, "score": e.score, "detail": e.detail}
+        for e in shown
+    ]
+    title = (
+        f"Top and bottom {len(bottom)} of {len(ranked)}"
+        if split
+        else f"All {len(ranked)} qualified, best first"
+    )
+    return BlockResult(
+        op=op.key,
+        label=op.label,
+        sentence=f"Spotlight: {cat_label.lower()} across {noun}",
+        description=op.description + f" This block ranks by {cat_rule}.",
+        tables=[BlockTable(title, headers, rows)],
+        charts=[chart],
+        context=context,
+    )
+
+
 _HANDLERS = {
     "compare_people": _compare_people,
     "compare_repos": _compare_repos,
     "compare_groups": _compare_groups,
     "versus_scope": _versus_scope,
+    "spotlight": _spotlight,
     "correlate_person_repo": _correlate_person_repo,
     "correlate_people": _correlate_people,
     "correlate_repos": _correlate_repos,

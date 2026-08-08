@@ -194,9 +194,9 @@
   }
   .rangebar .plabel { color: var(--text-helper); font-size: var(--type-label-01-size); margin-left: auto; }
   .rangebar form { display: flex; gap: var(--sp-03); align-items: center; flex-wrap: wrap; }
-  /* The rangebar is a compact strip: its date inputs share the 2rem height
+  /* The rangebar is a compact strip: its date fields share the 2rem height
      of the range links and the Go button beside them. */
-  .rangebar input[type="date"] { width: auto; min-width: 0; min-height: var(--size-sm); }
+  .rangebar .date-text { min-height: var(--size-sm); }
 
   /* ---- cards and panels ------------------------------------------------ */
 
@@ -334,6 +334,26 @@
   table.data td.cell-actions { text-align: right; }
   table.data td.cell-actions .actions { justify-content: flex-end; flex-wrap: nowrap; }
   table.data td.cell-actions .actions > form { flex: none; }
+  /* A cell full of identity tags scrolls sideways instead of wrapping tall
+     or starving its neighbors; the rename cell keeps room for real names. */
+  table.data td.cell-tags { max-width: calc(var(--sp-13) * 2.6); }
+  .tag-strip {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-02);
+    overflow-x: auto;
+    padding-bottom: var(--sp-01);
+    scrollbar-width: thin;
+  }
+  .tag-strip .tag { flex: none; }
+  table.data td.cell-rename { min-width: calc(var(--sp-13) * 1.8); }
+  /* Drill-down rows: the expanded raw-data strip reads as an inset layer. */
+  table.data td.drill-target {
+    padding: var(--sp-04) var(--sp-05);
+    background: var(--bg-layer-02);
+  }
+  .drilldown .subhead { margin-bottom: var(--sp-03); }
+  .drilldown > button { margin-top: var(--sp-03); }
   table.data td.cell-actions button,
   table.data td.cell-actions .btn { min-width: var(--sp-11); }
   /* Paired actions with variable labels (Keep X / Keep Y): split the cell
@@ -358,7 +378,10 @@
 
   /* ---- info tooltips --------------------------------------------------- */
 
-  .info-tip { position: relative; display: inline-flex; vertical-align: middle; }
+  /* vertical-align middle leaves the glyph sitting a hair low next to
+     text in every context (measured +2px from h2 to th); the fixed nudge
+     centers it on the adjacent text line. */
+  .info-tip { position: relative; display: inline-flex; vertical-align: middle; top: -2px; }
   /* The trigger opts out of every default button trait: it is an inline
      glyph, not an action. */
   .info-btn {
@@ -529,6 +552,10 @@
   .actions { display: flex; gap: var(--sp-03); align-items: flex-end; flex-wrap: wrap; }
   .actions.nowrap { flex-wrap: nowrap; }
   .actions.nowrap input { flex: 1; min-width: 0; }
+  /* Inline field rows: every field shares the row width equally and the
+     row collapses to wrapping on narrow viewports. */
+  .actions.fill > .field { flex: 1 1 0; min-width: var(--sp-13); }
+  .actions.fill > .field input { width: 100%; }
 
   label.field { display: grid; gap: var(--sp-02); }
   label.field > .label, .field-label {
@@ -642,10 +669,168 @@
     cursor: pointer;
   }
 
+  /* ---- calendar heatmap -------------------------------------------------- */
+
+  .heatmap-wrap { --hm-cell: 0.6875rem; overflow-x: auto; padding-bottom: var(--sp-02); }
+  .heatmap { display: flex; gap: var(--sp-01); width: max-content; }
+  .hm-col { display: flex; flex-direction: column; gap: var(--sp-01); }
+  .hm-cell { width: var(--hm-cell); height: var(--hm-cell); background: var(--bg-field-01); flex: none; }
+  .hm-cell.void { background: transparent; }
+  .hm-cell.l1 { background: color-mix(in srgb, var(--support-info) 25%, transparent); }
+  .hm-cell.l2 { background: color-mix(in srgb, var(--support-info) 45%, transparent); }
+  .hm-cell.l3 { background: color-mix(in srgb, var(--support-info) 70%, transparent); }
+  .hm-cell.l4 { background: var(--support-info); }
+  .heatmap-months {
+    display: grid;
+    gap: var(--sp-01);
+    margin-bottom: var(--sp-02);
+    color: var(--text-helper);
+    font-size: var(--type-label-01-size);
+    width: max-content;
+  }
+  .heatmap-months span { grid-row: 1; white-space: nowrap; }
+  .heatmap-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-01);
+    margin-top: var(--sp-03);
+    color: var(--text-helper);
+    font-size: var(--type-label-01-size);
+  }
+  .heatmap-legend span:first-child { margin-right: var(--sp-02); }
+  .heatmap-legend span:nth-last-child(-n+2) { margin-left: var(--sp-02); }
+  .hm-note { margin-left: var(--sp-04); }
+
+  /* ---- command palette -------------------------------------------------- */
+
+  .palette-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-02);
+    min-height: var(--size-sm);
+    padding: 0 var(--sp-03);
+    background: none;
+    border: var(--hairline) solid var(--border-subtle-01);
+    color: var(--text-secondary);
+    cursor: pointer;
+    margin-right: var(--sp-04);
+  }
+  .palette-hint:hover { background: var(--int-ghost-hover); color: var(--text-primary); }
+  .palette-hint kbd {
+    font-family: var(--font-mono);
+    font-size: var(--type-label-01-size);
+  }
+  .palette-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgb(0 0 0 / 0.55);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 10vh var(--sp-05) 0;
+  }
+  /* The author display beats the UA [hidden] rule; restate it. */
+  .palette-overlay[hidden] { display: none; }
+  .palette {
+    width: 100%;
+    max-width: calc(var(--sp-13) * 3.5);
+    background: var(--bg-layer-01);
+    border: var(--hairline) solid var(--border-subtle-01);
+    box-shadow: 0 6px 24px rgb(0 0 0 / 0.5);
+  }
+  .palette-input { width: 100%; }
+  .palette-list {
+    list-style: none;
+    max-height: calc(var(--sp-13) * 2);
+    overflow-y: auto;
+  }
+  .palette-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--sp-04);
+    padding: var(--sp-03) var(--sp-04);
+    font-size: var(--type-body-compact-01-size);
+    cursor: pointer;
+  }
+  .palette-list li:hover,
+  .palette-list li.active { background: var(--bg-layer-hover-01); }
+  .palette-kind {
+    color: var(--text-helper);
+    font-size: var(--type-label-01-size);
+    letter-spacing: 0.32px;
+    text-transform: uppercase;
+  }
+  .palette-help {
+    padding: var(--sp-03) var(--sp-04);
+    border-top: var(--hairline) solid var(--border-subtle-01);
+    color: var(--text-helper);
+    font-size: var(--type-label-01-size);
+  }
+
+  /* ---- combobox -------------------------------------------------------- */
+
+  .combobox { position: relative; display: block; }
+  .combobox .cb-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 60;
+    max-height: calc(var(--sp-13) + var(--sp-09));
+    overflow-y: auto;
+    background: var(--bg-layer-02);
+    border: var(--hairline) solid var(--border-subtle-01);
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+  }
+  .combobox .cb-list li {
+    padding: var(--sp-03) var(--sp-04);
+    font-size: var(--type-body-compact-01-size);
+    cursor: pointer;
+  }
+  .combobox .cb-list li:hover,
+  .combobox .cb-list li.active { background: var(--bg-layer-hover-02); }
+  .combobox .cb-list li[data-taken] { display: none; }
+  .combobox.missing .cb-input { outline: 2px solid var(--support-error); outline-offset: -2px; }
+
+  /* ---- date field ------------------------------------------------------- */
+
+  .datefield { position: relative; display: inline-flex; align-items: center; }
+  .datefield .date-text { width: calc(var(--sp-12) + var(--sp-08)); padding-right: var(--sp-07); }
+  .datefield .date-text.invalid { outline: 2px solid var(--support-error); outline-offset: -2px; }
+  .datefield .date-cal {
+    position: absolute;
+    right: var(--sp-02);
+    display: inline-flex;
+    align-items: center;
+    min-height: 0;
+    padding: var(--sp-02);
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .datefield .date-cal:hover { background: none; color: var(--text-primary); }
+  /* The native input stays in the layout solely to anchor showPicker();
+     display none would refuse to open it. */
+  .datefield .date-native {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 1px;
+    height: 1px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
   /* ---- list builder ---------------------------------------------------- */
 
   .list-builder .lb-add { display: flex; gap: var(--sp-03); margin-bottom: var(--sp-03); }
-  .list-builder .lb-add .select { flex: 1; max-width: var(--form-max); }
+  .list-builder .lb-add .combobox { flex: 1; max-width: var(--form-max); }
   .lb-items {
     border: var(--hairline) solid var(--border-subtle-01);
     height: var(--sp-13);

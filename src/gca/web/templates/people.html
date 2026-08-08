@@ -54,4 +54,53 @@
     {% endfor %}
   {% endcall %}
 </div>
+
+<div class="panel">
+  <h2>Ramp-up and turnover</h2>
+  {% if cohort.median_weeks_to_pr is not none %}
+  <p class="muted small mb-05">
+    Median onboarding across this scope:
+    {% if cohort.median_weeks_to_pr < 1 %}under one week{% else %}{{ cohort.median_weeks_to_pr }} weeks{% endif %}
+    from first activity to first merged pull request, measured over
+    {{ cohort.measured }} people.
+  </p>
+  {% endif %}
+  <div class="grid2">
+    <div>
+      <h3 class="subhead">Joined in {{ period.label | lower }} {{ c.info(glossary.joiners) }}</h3>
+      {% call c.table("People whose first activity falls in " ~ period.label,
+                      [("Person",), ("First activity",),
+                       ("To first PR", "num", "weeks", glossary.weeks_to_first_pr),
+                       ("To steady", "num", "weeks", glossary.weeks_to_steady)]) %}
+        {% for e in cohort.joiners %}
+        <tr>
+          <td><a href="/people/{{ e.person_id }}">{{ e.display_name }}</a></td>
+          <td class="helper small nowrap">{{ e.first_day.strftime("%d/%m/%Y") }}</td>
+          <td class="num">{{ e.weeks_to_first_pr if e.weeks_to_first_pr is not none else "-" }}</td>
+          <td class="num">{{ e.weeks_to_steady if e.weeks_to_steady is not none else "-" }}</td>
+        </tr>
+        {% else %}
+        {{ c.empty_row(4, "Nobody joined in this period.") }}
+        {% endfor %}
+      {% endcall %}
+    </div>
+    <div>
+      <h3 class="subhead">Left during {{ period.label | lower }} {{ c.info(glossary.leavers) }}</h3>
+      {% call c.table("People whose activity stopped in " ~ period.label,
+                      [("Person",), ("Last activity",),
+                       ("Active weeks", "num"), ("Since", "num", "days")]) %}
+        {% for e in cohort.leavers %}
+        <tr>
+          <td><a href="/people/{{ e.person_id }}">{{ e.display_name }}</a></td>
+          <td class="helper small nowrap">{{ e.last_day.strftime("%d/%m/%Y") }}</td>
+          <td class="num">{{ e.active_weeks }}</td>
+          <td class="num">{{ (period.end - e.last_day).days }}</td>
+        </tr>
+        {% else %}
+        {{ c.empty_row(4, "Nobody went quiet in this period.") }}
+        {% endfor %}
+      {% endcall %}
+    </div>
+  </div>
+</div>
 {% endblock %}

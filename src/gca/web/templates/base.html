@@ -29,6 +29,10 @@
     <a href="/settings" class="{{ 'active' if current.startswith('/settings') }}">Settings</a>
   </nav>
   <div class="spacer"></div>
+  <button type="button" class="palette-hint" data-palette-open
+          aria-label="Open the command palette, Control K">
+    <kbd>Ctrl</kbd> <kbd>K</kbd>
+  </button>
   <details class="scope">
     <summary>{{ scope.label }}</summary>
     <div class="dropdown">
@@ -55,13 +59,22 @@
   {% for org in scope.orgs if org.sync_status == 'degraded' %}
   <div class="banner error">
     Org <strong>{{ org.login }}</strong> is degraded: {{ org.sync_error }}
-    <a href="/orgs">Review</a>
+    <a href="/orgs" class="btn ghost small">Review</a>
   </div>
   {% endfor %}
   {% if mail_error %}
-  <div class="banner warn">Email delivery is failing: {{ mail_error }} <a href="/settings">Open settings</a></div>
+  <div class="banner warn">Email delivery is failing: {{ mail_error }} <a href="/settings" class="btn ghost small">Open settings</a></div>
   {% endif %}
   {% block content %}{% endblock %}
 </main>
+<div class="palette-overlay" id="palette" hidden>
+  <div class="palette" role="dialog" aria-modal="true" aria-label="Command palette">
+    <input type="text" class="palette-input" autocomplete="off"
+           placeholder="Jump to a person, repository, research or page"
+           aria-label="Command palette search">
+    <ul class="palette-list" role="listbox" aria-label="Command palette results"></ul>
+    <div class="palette-help">Enter opens, arrow keys move, Esc closes</div>
+  </div>
+</div>
 </body>
 </html>

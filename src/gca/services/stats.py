@@ -16,10 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from gca.models import (
     FilterMode,
+    Identity,
     Org,
     Person,
     PersonFilter,
     PersonRepoDayStats,
+    PullRequest,
     Repo,
 )
 from gca.services import membership
@@ -180,6 +182,66 @@ def _base_rollup_query(
     if person_ids:
         q = q.where(PersonRepoDayStats.person_id.in_(person_ids))
     return q
+
+
+async def activity_spans(
+    session: AsyncSession, *, orgs: list[int]
+) -> dict[int, tuple[date, date]]:
+    """Per-person first and last recorded activity day over the whole
+    history in scope, with repo inclusion and person filters applied."""
+    filters = await _person_filter_map(session, orgs)
+    q = (
+        sa.select(
+            PersonRepoDayStats.person_id,
+            PersonRepoDayStats.org_id,
+            sa.func.min(PersonRepoDayStats.day).label("first_day"),
+            sa.func.max(PersonRepoDayStats.day).label("last_day"),
+        )
+        .join(Repo, PersonRepoDayStats.repo_id == Repo.id)
+        .where(Repo.included.is_(True))
+        .group_by(PersonRepoDayStats.person_id, PersonRepoDayStats.org_id)
+    )
+    if orgs:
+        q = q.where(PersonRepoDayStats.org_id.in_(orgs))
+    spans: dict[int, tuple[date, date]] = {}
+    for row in (await session.execute(q)).all():
+        if not _person_allowed(filters, row.org_id, row.person_id):
+            continue
+        previous = spans.get(row.person_id)
+        first = min(previous[0], row.first_day) if previous else row.first_day
+        last = max(previous[1], row.last_day) if previous else row.last_day
+        spans[row.person_id] = (first, last)
+    return spans
+
+
+async def first_merged_prs(
+    session: AsyncSession, *, orgs: list[int]
+) -> dict[int, date]:
+    """Per-person day of their first merged pull request in scope."""
+    filters = await _person_filter_map(session, orgs)
+    q = (
+        sa.select(
+            Identity.person_id,
+            Repo.org_id,
+            sa.func.min(PullRequest.merged_at).label("first_merge"),
+        )
+        .join(PullRequest, PullRequest.author_identity_id == Identity.id)
+        .join(Repo, PullRequest.repo_id == Repo.id)
+        .where(Repo.included.is_(True), PullRequest.merged_at.is_not(None))
+        .group_by(Identity.person_id, Repo.org_id)
+    )
+    if orgs:
+        q = q.where(Repo.org_id.in_(orgs))
+    out: dict[int, date] = {}
+    for row in (await session.execute(q)).all():
+        if row.person_id is None or row.first_merge is None:
+            continue
+        if not _person_allowed(filters, row.org_id, row.person_id):
+            continue
+        day = row.first_merge.date()
+        current = out.get(row.person_id)
+        out[row.person_id] = day if current is None or day < current else current
+    return out
 
 
 async def person_leaderboard(

@@ -26,8 +26,9 @@ from gca.ai.fallback import fallback_text
 from gca.ai.insights import InsightResult, insight_for
 from gca.config import get_settings
 from gca.metrics.churn import DEFAULT_CHURN_WINDOW_DAYS
-from gca.models import Org, Person, Repo, Report
+from gca.models import Org, Person, Repo, Report, ReportSchedule
 from gca.reports.builder import render_pdf, trend_chart_svg
+from gca.scheduler.periods import PERIOD_KINDS
 from gca.services import audit, insight_context, stats
 from gca.services.stats import PersonStat
 from gca.timeutil import utcnow
@@ -38,6 +39,27 @@ REPORT_KINDS = ("overview", "person", "repo")
 # significance, so the ones that matter get real analysis); sections beyond
 # the cap use the fallback statements so large documents stay bounded.
 AI_SECTION_CAP = 40
+
+
+async def ensure_default_schedules(session: AsyncSession) -> int:
+    """Create enabled schedule rows for period and kind combinations that
+    have none yet. Schedules are on by default; the user opts out on the
+    Reports page, and saved choices (either way) are never overwritten."""
+    existing = {
+        (s.period_kind, s.report_kind)
+        for s in (await session.execute(sa.select(ReportSchedule))).scalars()
+    }
+    created = 0
+    for period_kind in PERIOD_KINDS:
+        for report_kind in REPORT_KINDS:
+            if (period_kind, report_kind) not in existing:
+                session.add(
+                    ReportSchedule(
+                        period_kind=period_kind, report_kind=report_kind, enabled=True
+                    )
+                )
+                created += 1
+    return created
 
 
 async def _scope_label(session: AsyncSession, org_ids: list[int]) -> str:

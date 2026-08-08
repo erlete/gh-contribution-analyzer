@@ -65,8 +65,8 @@
     activity, then disappears.
   </p>
   <form method="post" action="/manage/merge" class="actions">
-    {{ c.select_field("target_id", "Keep (survives)", options_from(persons, "id", "display_name")) }}
-    {{ c.select_field("source_id", "Absorb (disappears into Keep)", options_from(persons, "id", "display_name")) }}
+    {{ c.combobox_field("target_id", "Keep (survives)", options_from(persons, "id", "display_name")) }}
+    {{ c.combobox_field("source_id", "Absorb (disappears into Keep)", options_from(persons, "id", "display_name")) }}
     <button type="submit">Merge</button>
   </form>
 </div>
@@ -81,7 +81,8 @@
     {% for p in persons %}
     <tr>
       <td><a href="/people/{{ p.id }}">{{ p.display_name }}</a></td>
-      <td>
+      <td class="cell-tags">
+        <div class="tag-strip">
         {% for identity in p.identities %}
         <span class="tag teal outline">
           {{ identity.login or (identity.name ~ ' <' ~ identity.email ~ '>') }}
@@ -98,8 +99,9 @@
           {% endif %}
         </span>
         {% endfor %}
+        </div>
       </td>
-      <td>
+      <td class="cell-rename">
         <form method="post" action="/manage/person/{{ p.id }}/rename" class="actions nowrap">
           <input type="text" name="display_name" value="{{ p.display_name }}" class="maxw-field" aria-label="New display name">
           <button type="submit" class="secondary">Save</button>

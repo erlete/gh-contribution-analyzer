@@ -30,6 +30,29 @@ input type must be styled the same way before it ships — including
   only. The rangebar is a compact strip: its inputs are pinned to
   `--size-sm` so they match its links and Go button.
 
+## General rules (user-mandated, apply everywhere)
+
+- Action affordances are BUTTONS (`.btn` classes on anchors when they
+  navigate), never bare links: "Manage recipients", banner "Review" and
+  "Open settings" are the precedents. Bare links belong only inside
+  prose sentences and data-table entity cells.
+- Info icons (`c.info`) carry a -2px nudge in `.info-tip` so the glyph
+  centers on the adjacent text line in every context (measured across
+  h2, th, labels). Never compensate per-usage.
+- Dates display dd/mm/yyyy everywhere. Native date inputs are BANNED in
+  visible UI (they render the browser locale): use `c.date_field` /
+  `c.date_input`, a masked dd/mm/yyyy text input whose hidden input
+  submits ISO; its calendar button opens the off-screen native picker
+  via showPicker().
+- Entity pickers (people, repos, anything with more than a handful of
+  options) use `c.combobox` / `c.combobox_field`: type to filter, pick
+  from the list, free text never submits (`.cb-value` only ever holds a
+  listed value; empty named comboboxes block submit). `list_builder`
+  already embeds one. Native `select` stays for short enums only
+  (operation, metric, cadence, report kind).
+- Periodic schedule checkboxes default to CHECKED when no saved row
+  exists; `ensure_default_schedules` seeds enabled rows at app startup.
+
 ## Table action columns
 
 Give the `<td>` holding row buttons `class="cell-actions"`: it right-aligns

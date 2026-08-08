@@ -30,6 +30,11 @@
 </div>
 
 <div class="panel">
+  <h2>Activity calendar {{ c.info(glossary.activity_calendar) }}</h2>
+  {{ c.heatmap(heatmap) }}
+</div>
+
+<div class="panel">
   <h2>Activity trend {{ c.info(glossary.trend) }}</h2>
   {{ c.chart("trend", "/api/charts/repo-activity?range=" ~ period.key ~ "&repo_id=" ~ repo.id) }}
 </div>
@@ -43,7 +48,8 @@
                    ("Significance", "num", None, glossary.significance),
                    ("PRs", "num", None, glossary.prs_merged),
                    ("Reviews", "num", None, glossary.reviews),
-                   ("Pctl", "num", None, glossary.percentile)]) %}
+                   ("Pctl", "num", None, glossary.percentile),
+                   ("", None, None, glossary.drilldown)]) %}
     {% for p in contributors %}
     <tr>
       <td><a href="/people/{{ p.person_id }}">{{ p.display_name }}</a></td>
@@ -54,9 +60,18 @@
       <td class="num">{{ p.prs_merged | int_fmt }}</td>
       <td class="num">{{ p.reviews | int_fmt }}</td>
       <td class="num">{{ c.tag("P" ~ (p.percentiles.get('significance') | pct), "blue", outline=True) }}</td>
+      <td class="cell-actions">
+        <button type="button" class="ghost small" data-drill="#drill-p{{ p.person_id }}"
+                hx-get="/partials/drilldown?person_id={{ p.person_id }}&repo_id={{ repo.id }}&range={{ period.key }}"
+                hx-target="#drill-p{{ p.person_id }} .drill-target" hx-trigger="click once"
+                hx-swap="innerHTML">Details</button>
+      </td>
+    </tr>
+    <tr id="drill-p{{ p.person_id }}" class="drill-row" hidden>
+      <td colspan="9" class="drill-target"><div class="skeleton"></div></td>
     </tr>
     {% else %}
-    {{ c.empty_row(8, "No contributions in this period.") }}
+    {{ c.empty_row(9, "No contributions in this period.") }}
     {% endfor %}
   {% endcall %}
 </div>

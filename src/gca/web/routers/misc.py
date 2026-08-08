@@ -2,6 +2,7 @@
 
 from typing import Annotated
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import (
     HTMLResponse,
@@ -15,8 +16,8 @@ from gca.ai.insights import insight_for
 from gca.charts import ChartSpec, Series, palettes, render_echarts
 from gca.db.engine import get_session
 from gca.models import Org, Person, Repo, Research
-from gca.services import insight_context, research, stats
-from gca.web.context import SCOPE_COOKIE, get_scope, parse_range
+from gca.services import drilldown, insight_context, membership, research, stats
+from gca.web.context import RANGE_CHOICES, SCOPE_COOKIE, get_scope, parse_range
 from gca.web.deps import templates
 
 router = APIRouter()
@@ -50,6 +51,115 @@ async def set_scope(
         samesite="strict",
     )
     return response
+
+
+_PALETTE_PAGES = (
+    ("Dashboard", "/"),
+    ("Repositories", "/repos"),
+    ("People", "/people"),
+    ("Research", "/research"),
+    ("Identities", "/manage"),
+    ("Organizations", "/orgs"),
+    ("Reports", "/reports"),
+    ("Operations", "/operations"),
+    ("Settings", "/settings"),
+)
+
+
+@router.get("/api/palette")
+async def palette_items(request: Request, session: SessionDep) -> JSONResponse:
+    """Everything the command palette can jump to: pages, people, repos,
+    researches and period switches, honoring the current org scope."""
+    scope = await get_scope(request, session)
+    items: list[dict[str, str]] = [
+        {"kind": "page", "label": label, "url": url} for label, url in _PALETTE_PAGES
+    ]
+    items.extend(
+        {"kind": "action", "label": f"Period: {label}", "url": f"?range={key}"}
+        for key, (_days, label) in RANGE_CHOICES.items()
+    )
+    persons = (
+        (await session.execute(sa.select(Person).order_by(Person.display_name)))
+        .scalars()
+        .all()
+    )
+    relevant = await membership.relevant_person_ids(session)
+    if relevant is not None:
+        persons = [p for p in persons if p.id in relevant]
+    items.extend(
+        {"kind": "person", "label": p.display_name, "url": f"/people/{p.id}"}
+        for p in persons
+    )
+    repo_rows = (
+        await session.execute(
+            sa.select(Repo.id, Repo.name, Org.login)
+            .join(Org, Repo.org_id == Org.id)
+            .where(Repo.included.is_(True), Org.id.in_(scope.selected_ids))
+            .order_by(Org.login, Repo.name)
+        )
+    ).all()
+    items.extend(
+        {"kind": "repo", "label": f"{row.login}/{row.name}", "url": f"/repos/{row.id}"}
+        for row in repo_rows
+    )
+    researches = (
+        (
+            await session.execute(
+                sa.select(Research).order_by(Research.updated_at.desc()).limit(30)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    items.extend(
+        {"kind": "research", "label": r.name, "url": f"/research/{r.id}"}
+        for r in researches
+    )
+    return JSONResponse({"items": items})
+
+
+@router.get("/partials/drilldown", response_class=HTMLResponse)
+async def drilldown_partial(
+    request: Request,
+    session: SessionDep,
+    person_id: int,
+    repo_id: int,
+    limit: int = 50,
+) -> Response:
+    """The raw commits and pull requests behind a person times repo row."""
+    period = parse_range(request)
+    limit = max(1, min(limit, 500))
+    commits, commit_total = await drilldown.commit_rows(
+        session,
+        person_id=person_id,
+        repo_id=repo_id,
+        start=period.start,
+        end=period.end,
+        limit=limit,
+    )
+    prs, pr_total = await drilldown.pr_rows(
+        session,
+        person_id=person_id,
+        repo_id=repo_id,
+        start=period.start,
+        end=period.end,
+        limit=limit,
+    )
+    return templates.TemplateResponse(
+        request,
+        "_drilldown.html",
+        {
+            "commits": commits,
+            "commit_total": commit_total,
+            "prs": prs,
+            "pr_total": pr_total,
+            "person_id": person_id,
+            "repo_id": repo_id,
+            "range_key": period.key,
+            "period_label": period.label,
+            "limit": limit,
+        },
+    )
 
 
 @router.get("/api/charts/trend")

@@ -12,6 +12,7 @@ from gca.models import Org, Repo
 from gca.services import stats
 from gca.web.context import RANGE_CHOICES, get_scope, parse_range
 from gca.web.deps import templates
+from gca.web.heatmap import build_heatmap
 
 router = APIRouter()
 
@@ -63,6 +64,13 @@ async def repo_detail(request: Request, session: SessionDep, repo_id: int) -> Re
     contributors = await stats.repo_contributors(
         session, repo_id=repo_id, orgs=[], start=period.start, end=period.end
     )
+    series = await stats.timeseries(
+        session,
+        orgs=[],
+        start=period.start,
+        end=period.end,
+        repo_ids=[repo_id],
+    )
     return templates.TemplateResponse(
         request,
         "repo_detail.html",
@@ -74,6 +82,7 @@ async def repo_detail(request: Request, session: SessionDep, repo_id: int) -> Re
             "org": org,
             "totals": totals,
             "contributors": contributors,
+            "heatmap": build_heatmap(series, start=period.start, end=period.end),
             "mail_error": None,
         },
     )
